@@ -13,7 +13,6 @@ import {
   saveListFile,
 } from "./localStore"
 import {
-  addDays,
   dailyFilterLabel,
   dueMarker,
   formatMonthDay,
@@ -156,7 +155,7 @@ export function App() {
 
   function openNewTodo() {
     setOpenMenu(null)
-    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: addDays(today, 7), steps: [] })
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: today, steps: [] })
   }
 
   function openDaily(item: Daily) {
