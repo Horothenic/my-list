@@ -75,6 +75,10 @@ export function App() {
   const [driveSignedIn, setDriveSignedIn] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  const [installed, setInstalled] = useState(
+    () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
+  )
   const [editor, setEditor] = useState<Draft | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sourceRef = useRef<SourceId>("local")
@@ -147,6 +151,23 @@ export function App() {
     void saveDriveLink(sync.link)
     setDriveBanner({ kind: "conflict", message: "This browser and Google Drive both have changes." })
   }
+
+  useEffect(() => {
+    const onPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallEvent(event as BeforeInstallPromptEvent)
+    }
+    const onInstalled = () => {
+      setInstalled(true)
+      setInstallEvent(null)
+    }
+    window.addEventListener("beforeinstallprompt", onPrompt)
+    window.addEventListener("appinstalled", onInstalled)
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt)
+      window.removeEventListener("appinstalled", onInstalled)
+    }
+  }, [])
 
   useEffect(() => {
     let cancel = false
@@ -567,6 +588,14 @@ export function App() {
     }
   }
 
+  async function installApp() {
+    if (!installEvent) return
+    await installEvent.prompt()
+    const choice = await installEvent.userChoice
+    if (choice.outcome === "accepted") setInstallEvent(null)
+    setOpenMenu(null)
+  }
+
   async function onFileInput(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ""
@@ -656,6 +685,16 @@ export function App() {
                 </div>
               )}
               {storageNote && <div className="storage-note">{storageNote}</div>}
+              {!installed &&
+                (installEvent ? (
+                  <div className="source-actions">
+                    <button type="button" className="menu-action" onClick={() => void installApp()}>
+                      Add to Home Screen
+                    </button>
+                  </div>
+                ) : (
+                  <div className="menu-note">{homeScreenHint()}</div>
+                ))}
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
@@ -897,6 +936,13 @@ export function App() {
       )}
     </div>
   )
+}
+
+function homeScreenHint(): string {
+  if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
+    return "On iPhone, use Share, then Add to Home Screen. The last list still opens offline."
+  }
+  return "Use the browser menu, then Add to Home Screen. The last list still opens offline."
 }
 
 function driveErrorMessage(error: unknown, fallback: string): string {

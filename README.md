@@ -28,3 +28,14 @@ VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
 Restart `npm run dev`. Then choose Source → Google Drive.
+
+## Phone
+
+The built site can be added to the home screen. The last list in this browser opens when there is no connection. Reminder sounds wait for a later app wrapper.
+
+```bash
+npm run build
+npm run preview
+```
+
+The public site is [https://horothenic.github.io/my-list/](https://horothenic.github.io/my-list/). Open that address on a phone or another computer. Sign in to Google Drive on each one so they share the same list. The site address must be an authorized JavaScript origin on the Google client: `https://horothenic.github.io`.
