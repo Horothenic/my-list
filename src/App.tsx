@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
+import { Editor, type Draft } from "./Editor"
 import { Logo } from "./Logo"
 import {
   addDays,
@@ -9,10 +10,12 @@ import {
   isoDate,
   scheduleLabel,
   todoFilterLabel,
+  todoStillKept,
   visibleDailies,
   visibleTodos,
   type Daily,
   type DailyFilter,
+  type DailySchedule,
   type OpenMenu,
   type Pane,
   type SourceId,
@@ -34,7 +37,8 @@ export function App() {
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("remaining")
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("now")
   const [dailies, setDailies] = useState<Daily[]>(sampleDailies)
-  const [todos, setTodos] = useState<Todo[]>(sampleTodos)
+  const [todos, setTodos] = useState<Todo[]>(() => sampleTodos.filter((item) => todoStillKept(item, today)))
+  const [editor, setEditor] = useState<Draft | null>(null)
 
   useEffect(() => {
     if (!openMenu) return
@@ -74,35 +78,78 @@ export function App() {
     )
   }
 
-  function addDaily() {
-    setDailies((items) => [
-      {
-        id: crypto.randomUUID(),
-        title: "New daily",
-        description: "",
-        schedule: { kind: "every-day" },
-        doneOn: null,
-      },
-      ...items,
-    ])
-    setDailyFilter("remaining")
-    setPane("dailies")
+  function openNewDaily() {
+    setOpenMenu(null)
+    setEditor({ mode: "daily", id: null, title: "", description: "", scheduleKind: "every-day", days: [] })
   }
 
-  function addTodo() {
-    setTodos((items) => [
-      {
-        id: crypto.randomUUID(),
-        title: "New todo",
-        description: "",
-        start: today,
-        due: addDays(today, 7),
-        doneOn: null,
-      },
-      ...items,
-    ])
-    setTodoFilter("now")
-    setPane("todos")
+  function openNewTodo() {
+    setOpenMenu(null)
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: today, due: addDays(today, 7) })
+  }
+
+  function openDaily(item: Daily) {
+    setOpenMenu(null)
+    setEditor({
+      mode: "daily",
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      scheduleKind: item.schedule.kind,
+      days: item.schedule.kind === "days" ? item.schedule.days : [],
+    })
+  }
+
+  function openTodo(item: Todo) {
+    setOpenMenu(null)
+    setEditor({
+      mode: "todo",
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      start: item.start,
+      due: item.due,
+    })
+  }
+
+  function saveDraft(draft: Draft) {
+    if (draft.mode === "daily") {
+      const schedule: DailySchedule =
+        draft.scheduleKind === "days"
+          ? { kind: "days", days: [...draft.days].sort((a, b) => a - b) }
+          : { kind: draft.scheduleKind }
+      const next: Daily = {
+        id: draft.id ?? crypto.randomUUID(),
+        title: draft.title,
+        description: draft.description,
+        schedule,
+        doneOn: draft.id ? (dailies.find((item) => item.id === draft.id)?.doneOn ?? null) : null,
+      }
+      setDailies((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
+      if (!draft.id) setDailyFilter("remaining")
+      setPane("dailies")
+    } else {
+      const previous = draft.id ? todos.find((item) => item.id === draft.id) : undefined
+      const next: Todo = {
+        id: draft.id ?? crypto.randomUUID(),
+        title: draft.title,
+        description: draft.description,
+        start: draft.start,
+        due: draft.due,
+        doneOn: previous?.doneOn ?? null,
+      }
+      setTodos((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
+      setTodoFilter(next.doneOn ? "done" : next.start > today ? "later" : next.due < today ? "overdue" : "now")
+      setPane("todos")
+    }
+    setEditor(null)
+  }
+
+  function deleteDraft() {
+    if (!editor?.id) return
+    if (editor.mode === "daily") setDailies((items) => items.filter((item) => item.id !== editor.id))
+    else setTodos((items) => items.filter((item) => item.id !== editor.id))
+    setEditor(null)
   }
 
   const shownDailies = visibleDailies(dailies, dailyFilter, today)
@@ -209,7 +256,7 @@ export function App() {
             ))}
           </FilterMenu>
         )}
-        <button type="button" className="plus-btn" aria-label={pane === "dailies" ? "Add a daily" : "Add a todo"} onClick={pane === "dailies" ? addDaily : addTodo}>
+        <button type="button" className="plus-btn" aria-label={pane === "dailies" ? "Add a daily" : "Add a todo"} onClick={pane === "dailies" ? openNewDaily : openNewTodo}>
           +
         </button>
       </div>
@@ -236,7 +283,7 @@ export function App() {
                 />
               ))}
             </FilterMenu>
-            <button type="button" className="plus-btn" aria-label="Add a daily" onClick={addDaily}>
+            <button type="button" className="plus-btn" aria-label="Add a daily" onClick={openNewDaily}>
               +
             </button>
           </div>
@@ -252,11 +299,11 @@ export function App() {
                 >
                   {item.doneOn === today && <CheckMark />}
                 </button>
-                <span className="item">
+                <button type="button" className="item" onClick={() => openDaily(item)}>
                   <span className="title">{item.title}</span>
                   {item.description && <span className="desc">{item.description}</span>}
                   <span className="tag">{scheduleLabel(item.schedule)}</span>
-                </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -284,7 +331,7 @@ export function App() {
                 />
               ))}
             </FilterMenu>
-            <button type="button" className="plus-btn" aria-label="Add a todo" onClick={addTodo}>
+            <button type="button" className="plus-btn" aria-label="Add a todo" onClick={openNewTodo}>
               +
             </button>
           </div>
@@ -300,7 +347,7 @@ export function App() {
                 >
                   {item.doneOn && <CheckMark />}
                 </button>
-                <span className="item">
+                <button type="button" className="item" onClick={() => openTodo(item)}>
                   <span className="title">{item.title}</span>
                   {item.description && <span className="desc">{item.description}</span>}
                   <span className="dates">
@@ -309,12 +356,21 @@ export function App() {
                       Due {formatMonthDay(item.due)}
                     </span>
                   </span>
-                </span>
+                </button>
               </li>
             ))}
           </ul>
         </section>
       </div>
+      {editor && (
+        <Editor
+          key={`${editor.mode}-${editor.id ?? "new"}`}
+          initial={editor}
+          onSave={saveDraft}
+          onDelete={deleteDraft}
+          onClose={() => setEditor(null)}
+        />
+      )}
     </div>
   )
 }

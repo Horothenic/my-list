@@ -204,6 +204,18 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   gap: 2px;
 }
 
+button.item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rows li:hover { background: #2A313A; }
+
 .pane-dailies .item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -261,4 +273,116 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   .app[data-pane="todos"] .pane-dailies { display: none; }
   .rows li { padding: 12px 16px; }
   .pane-dailies .item { display: grid; }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(14, 17, 20, 0.62);
+}
+
+.editor {
+  width: min(420px, 100%);
+  padding: 18px;
+  background: #24292F;
+  border: 1px solid #373E47;
+  border-radius: 10px;
+  color-scheme: dark;
+}
+
+.editor h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+
+.editor label,
+.editor legend {
+  display: block;
+  margin-bottom: 12px;
+  color: #9DA7B3;
+  font-size: 12px;
+}
+
+.editor input[type="text"],
+.editor input:not([type]),
+.editor textarea,
+.editor input[type="date"] {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: #1E2227;
+  color: #E6EDF3;
+  font: inherit;
+}
+
+.editor textarea { resize: vertical; }
+
+.editor fieldset { margin: 0 0 12px; padding: 0; border: 0; }
+.editor legend { margin-bottom: 8px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: #E6EDF3;
+  font-size: 14px;
+}
+
+.choice input { margin: 0; accent-color: #4493F8; }
+
+.days { display: flex; gap: 6px; margin: 4px 0 8px; }
+
+.day {
+  width: 36px;
+  height: 32px;
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: #1E2227;
+  color: #9DA7B3;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.day.on { background: #1B3354; border-color: #4493F8; color: #E6EDF3; }
+
+.date-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.editor-error { margin: 0 0 12px; color: #F47067; font-size: 13px; }
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.editor-actions-right { display: flex; gap: 8px; }
+
+.text-danger {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #F47067;
+  font: inherit;
+  cursor: pointer;
+}
+
+.save-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #4493F8;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }

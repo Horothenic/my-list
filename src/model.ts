@@ -70,11 +70,18 @@ export function visibleDailies(items: Daily[], filter: DailyFilter, today: strin
   return items
 }
 
+/** A finished todo stays through the 7th day after it was completed, then it is removed. */
+export function todoStillKept(item: Todo, today: string): boolean {
+  if (item.doneOn === null) return true
+  return today <= addDays(item.doneOn, 7)
+}
+
 export function visibleTodos(items: Todo[], filter: TodoFilter, today: string): Todo[] {
-  const open = items.filter((item) => item.doneOn === null)
+  const kept = items.filter((item) => todoStillKept(item, today))
+  const open = kept.filter((item) => item.doneOn === null)
   const list =
     filter === "done"
-      ? items.filter((item) => item.doneOn !== null)
+      ? kept.filter((item) => item.doneOn !== null)
       : filter === "later"
         ? open.filter((item) => item.start > today)
         : filter === "overdue"

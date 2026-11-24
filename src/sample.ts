@@ -105,4 +105,12 @@ export const sampleTodos: Todo[] = [
     due: addDays(today, -1),
     doneOn: addDays(today, -1),
   },
+  {
+    id: "receipt",
+    title: "File the old receipt",
+    description: "Finished more than a week ago",
+    start: addDays(today, -20),
+    due: addDays(today, -12),
+    doneOn: addDays(today, -10),
+  },
 ]
