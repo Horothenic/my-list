@@ -61,8 +61,24 @@ export function decideSync(currentText: string, driveText: string, base: string 
   return "conflict"
 }
 
+const SIGN_IN_ERRORS = new Set([
+  "auth",
+  "popup_closed",
+  "popup_closed_by_user",
+  "popup_failed_to_open",
+  "access_denied",
+  "interaction_required",
+  "consent_required",
+  "login_required",
+  "immediate_failed",
+])
+
 export function driveSignInCancelled(error: unknown): boolean {
-  return error instanceof Error && (error.message === "popup_closed" || error.message === "access_denied")
+  return error instanceof Error && (error.message === "popup_closed" || error.message === "popup_closed_by_user" || error.message === "access_denied")
+}
+
+export function driveNeedsSignIn(error: unknown): boolean {
+  return error instanceof Error && SIGN_IN_ERRORS.has(error.message)
 }
 
 export function loadGoogleIdentity(): Promise<void> {

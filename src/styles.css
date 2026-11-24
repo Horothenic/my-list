@@ -115,29 +115,34 @@ button { font: inherit; color: inherit; }
 
 .storage-note { margin: 2px 8px 8px; color: #F47067; font-size: 12px; }
 
-.status-bar {
+.message-bar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex: none;
   gap: 8px;
-  padding: 8px 16px;
-  background: #2D333B;
-  border-bottom: 1px solid #373E47;
-  color: #E6EDF3;
+  padding: 8px 12px;
+  background: #3D2E00;
+  color: #E3B341;
   font-size: 13px;
 }
 
-.status-bar button {
+.message-bar svg { width: 16px; height: 16px; flex: none; }
+.message-bar .message-text { flex: 1; min-width: 0; }
+
+.message-bar button {
   height: 28px;
   padding: 0 10px;
-  border: 1px solid #373E47;
+  border: 1px solid #E3B341;
   border-radius: 6px;
-  background: #24292F;
-  color: #E6EDF3;
+  background: transparent;
+  color: #E3B341;
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+  flex: none;
 }
+
+.message-bar .dismiss { width: 28px; padding: 0; border: 0; }
 
 .menu-label, .menu-note {
   margin: 4px 8px 6px;

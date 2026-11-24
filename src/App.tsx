@@ -4,6 +4,7 @@ import {
   clearDriveToken,
   currentDriveToken,
   driveConfigured,
+  driveNeedsSignIn,
   driveSignInCancelled,
   driveTokenForSave,
   loadGoogleIdentity,
@@ -185,7 +186,12 @@ export function App() {
           applyDriveSync(sync, doc)
         } catch (error) {
           if (cancel || connectGen.current !== gen) return
-          if (driveSignInCancelled(error) || (error instanceof Error && error.message === "auth")) {
+          if (error instanceof Error && error.message === "google-script") {
+            setDriveBanner({ kind: "error", message: "Could not reach Google." })
+            return
+          }
+          if (!currentDriveToken() || driveNeedsSignIn(error)) {
+            setDriveSignedIn(false)
             setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
             return
           }
@@ -256,7 +262,7 @@ export function App() {
           } catch (error) {
             if (sourceRef.current === "drive") {
               await saveVisible(latest).catch(() => undefined)
-              if (error instanceof Error && error.message === "auth") {
+              if (driveNeedsSignIn(error)) {
                 setDriveSignedIn(false)
                 setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
               } else {
@@ -658,31 +664,6 @@ export function App() {
           <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
         </div>
       </header>
-      {driveBanner && source === "drive" && (
-        <div className="status-bar" role="status">
-          <span>{driveBanner.message}</span>
-          {driveBanner.kind === "conflict" && (
-            <>
-              <button type="button" onClick={() => void keepBrowserList()}>
-                Keep this list
-              </button>
-              <button type="button" onClick={() => void useDriveFile()}>
-                Use the Drive file
-              </button>
-            </>
-          )}
-          {driveBanner.kind === "signin" && (
-            <button type="button" onClick={() => void connectDrive()}>
-              Sign in
-            </button>
-          )}
-          {driveBanner.kind === "error" && driveConfigured() && (
-            <button type="button" onClick={() => void connectDrive()}>
-              Try again
-            </button>
-          )}
-        </div>
-      )}
 
       <div className="segment" role="tablist">
         <button
@@ -877,6 +858,37 @@ export function App() {
           </ul>
         </section>
       </div>
+      {driveBanner && source === "drive" && (
+        <div className="message-bar" role="status">
+          <AlertIcon />
+          <span className="message-text">{driveBanner.message}</span>
+          {driveBanner.kind === "conflict" && (
+            <>
+              <button type="button" onClick={() => void keepBrowserList()}>
+                Keep this list
+              </button>
+              <button type="button" onClick={() => void useDriveFile()}>
+                Use the Drive file
+              </button>
+            </>
+          )}
+          {driveBanner.kind === "signin" && (
+            <button type="button" onClick={() => void connectDrive()}>
+              Sign in
+            </button>
+          )}
+          {driveBanner.kind === "error" && driveConfigured() && (
+            <button type="button" onClick={() => void connectDrive()}>
+              Try again
+            </button>
+          )}
+          {driveBanner.kind !== "conflict" && (
+            <button type="button" className="dismiss" aria-label="Dismiss" onClick={() => setDriveBanner(null)}>
+              <CloseIcon />
+            </button>
+          )}
+        </div>
+      )}
       {editor && (
         <Editor
           key={`${editor.mode}-${editor.id ?? "new"}`}
@@ -943,6 +955,24 @@ function StepsBlock({
 
 function Caret() {
   return <i className="caret" />
+}
+
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 1.8 L14.4 13.2 H1.6 Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M8 6.1 V9.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="11.2" r="0.7" fill="currentColor" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 function CheckMark() {
