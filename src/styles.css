@@ -5,6 +5,7 @@ html, body, #root { height: 100%; margin: 0; }
 html {
   background: #24292F;
   color-scheme: dark;
+  touch-action: manipulation;
 }
 
 body {
@@ -472,6 +473,7 @@ button.item {
   background: #1E2227;
   color: #E6EDF3;
   font: inherit;
+  font-size: 16px;
 }
 
 .editor textarea { resize: vertical; }
