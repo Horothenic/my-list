@@ -28,3 +28,12 @@ VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
 Restart `npm run dev`. Then choose Source → Google Drive.
+
+## Phone
+
+The built site can be added to the home screen. The last list in this browser opens when there is no connection. Reminder sounds wait for a later app wrapper.
+
+```bash
+npm run build
+npm run preview
+```
