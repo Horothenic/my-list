@@ -19,6 +19,7 @@ import {
   type OpenMenu,
   type Pane,
   type SourceId,
+  type Step,
   type Todo,
   type TodoFilter,
 } from "./model"
@@ -80,12 +81,12 @@ export function App() {
 
   function openNewDaily() {
     setOpenMenu(null)
-    setEditor({ mode: "daily", id: null, title: "", description: "", scheduleKind: "every-day", days: [] })
+    setEditor({ mode: "daily", id: null, title: "", description: "", scheduleKind: "every-day", days: [], steps: [] })
   }
 
   function openNewTodo() {
     setOpenMenu(null)
-    setEditor({ mode: "todo", id: null, title: "", description: "", start: today, due: addDays(today, 7) })
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: today, due: addDays(today, 7), steps: [] })
   }
 
   function openDaily(item: Daily) {
@@ -97,6 +98,7 @@ export function App() {
       description: item.description,
       scheduleKind: item.schedule.kind,
       days: item.schedule.kind === "days" ? item.schedule.days : [],
+      steps: item.steps.map((step) => ({ ...step })),
     })
   }
 
@@ -109,6 +111,7 @@ export function App() {
       description: item.description,
       start: item.start,
       due: item.due,
+      steps: item.steps.map((step) => ({ ...step })),
     })
   }
 
@@ -123,6 +126,7 @@ export function App() {
         title: draft.title,
         description: draft.description,
         schedule,
+        steps: draft.steps,
         doneOn: draft.id ? (dailies.find((item) => item.id === draft.id)?.doneOn ?? null) : null,
       }
       setDailies((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
@@ -136,6 +140,7 @@ export function App() {
         description: draft.description,
         start: draft.start,
         due: draft.due,
+        steps: draft.steps,
         doneOn: previous?.doneOn ?? null,
       }
       setTodos((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
@@ -143,6 +148,14 @@ export function App() {
       setPane("todos")
     }
     setEditor(null)
+  }
+
+  function toggleDailyStep(itemId: string, stepId: string) {
+    setDailies((items) => items.map((item) => (item.id === itemId ? { ...item, steps: flipStep(item.steps, stepId) } : item)))
+  }
+
+  function toggleTodoStep(itemId: string, stepId: string) {
+    setTodos((items) => items.map((item) => (item.id === itemId ? { ...item, steps: flipStep(item.steps, stepId) } : item)))
   }
 
   function deleteDraft() {
@@ -299,11 +312,14 @@ export function App() {
                 >
                   {item.doneOn === today && <CheckMark />}
                 </button>
-                <button type="button" className="item" onClick={() => openDaily(item)}>
-                  <span className="title">{item.title}</span>
-                  {item.description && <span className="desc">{item.description}</span>}
-                  <span className="tag">{scheduleLabel(item.schedule)}</span>
-                </button>
+                <div className="item-body">
+                  <button type="button" className="item" onClick={() => openDaily(item)}>
+                    <span className="title">{item.title}</span>
+                    {item.description && <span className="desc">{item.description}</span>}
+                    <span className="tag">{scheduleLabel(item.schedule)}</span>
+                  </button>
+                  <StepList steps={item.steps} onToggle={(stepId) => toggleDailyStep(item.id, stepId)} />
+                </div>
               </li>
             ))}
           </ul>
@@ -347,16 +363,19 @@ export function App() {
                 >
                   {item.doneOn && <CheckMark />}
                 </button>
-                <button type="button" className="item" onClick={() => openTodo(item)}>
-                  <span className="title">{item.title}</span>
-                  {item.description && <span className="desc">{item.description}</span>}
-                  <span className="dates">
-                    <span className="from">From {formatMonthDay(item.start)}</span>
-                    <span className={dueIsSoon(item.due, today) && !item.doneOn ? "due soon" : "due"}>
-                      Due {formatMonthDay(item.due)}
+                <div className="item-body">
+                  <button type="button" className="item" onClick={() => openTodo(item)}>
+                    <span className="title">{item.title}</span>
+                    {item.description && <span className="desc">{item.description}</span>}
+                    <span className="dates">
+                      <span className="from">From {formatMonthDay(item.start)}</span>
+                      <span className={dueIsSoon(item.due, today) && !item.doneOn ? "due soon" : "due"}>
+                        Due {formatMonthDay(item.due)}
+                      </span>
                     </span>
-                  </span>
-                </button>
+                  </button>
+                  <StepList steps={item.steps} onToggle={(stepId) => toggleTodoStep(item.id, stepId)} />
+                </div>
               </li>
             ))}
           </ul>
@@ -372,6 +391,33 @@ export function App() {
         />
       )}
     </div>
+  )
+}
+
+function flipStep(steps: Step[], stepId: string): Step[] {
+  return steps.map((step) => (step.id === stepId ? { ...step, done: !step.done } : step))
+}
+
+function StepList({ steps, onToggle }: { steps: Step[]; onToggle: (stepId: string) => void }) {
+  if (steps.length === 0) return null
+  return (
+    <ul className="steps">
+      {steps.map((step) => (
+        <li key={step.id}>
+          <button
+            type="button"
+            className="step"
+            aria-pressed={step.done}
+            onClick={() => onToggle(step.id)}
+          >
+            <span className={step.done ? "check on" : "check"} aria-hidden="true">
+              {step.done && <CheckMark />}
+            </span>
+            <span className={step.done ? "step-title done" : "step-title"}>{step.title}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 

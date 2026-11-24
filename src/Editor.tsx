@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { DailySchedule } from "./model"
+import type { DailySchedule, Step } from "./model"
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
@@ -13,6 +13,7 @@ export type Draft =
       description: string
       scheduleKind: ScheduleKind
       days: number[]
+      steps: Step[]
     }
   | {
       mode: "todo"
@@ -21,6 +22,7 @@ export type Draft =
       description: string
       start: string
       due: string
+      steps: Step[]
     }
 
 export function Editor({
@@ -63,7 +65,10 @@ export function Editor({
       setError("The due date has to be on or after the start")
       return
     }
-    onSave({ ...draft, title, description: draft.description.trim() })
+    const steps = draft.steps
+      .map((step) => ({ ...step, title: step.title.trim() }))
+      .filter((step) => step.title !== "")
+    onSave({ ...draft, title, description: draft.description.trim(), steps })
   }
 
   const heading = draft.id === null ? (draft.mode === "daily" ? "New daily" : "New todo") : draft.mode === "daily" ? "Edit daily" : "Edit todo"
@@ -97,23 +102,20 @@ export function Editor({
         </label>
 
         {draft.mode === "daily" ? (
-          <fieldset>
-            <legend>Schedule</legend>
-            <ScheduleChoice
-              label="Every day"
-              checked={draft.scheduleKind === "every-day"}
-              onChange={() => setDraft({ ...draft, scheduleKind: "every-day" })}
-            />
-            <ScheduleChoice
-              label="Weekdays"
-              checked={draft.scheduleKind === "weekdays"}
-              onChange={() => setDraft({ ...draft, scheduleKind: "weekdays" })}
-            />
-            <ScheduleChoice
-              label="Specific days"
-              checked={draft.scheduleKind === "days"}
-              onChange={() => setDraft({ ...draft, scheduleKind: "days" })}
-            />
+          <div className="schedule">
+            <label>
+              Schedule
+              <select
+                value={draft.scheduleKind}
+                onChange={(event) =>
+                  setDraft({ ...draft, scheduleKind: event.target.value as ScheduleKind })
+                }
+              >
+                <option value="every-day">Every day</option>
+                <option value="weekdays">Weekdays</option>
+                <option value="days">Specific days</option>
+              </select>
+            </label>
             {draft.scheduleKind === "days" && (
               <div className="days">
                 {DAY_LABELS.map((label, day) => {
@@ -137,7 +139,7 @@ export function Editor({
                 })}
               </div>
             )}
-          </fieldset>
+          </div>
         ) : (
           <div className="date-fields">
             <label>
@@ -158,6 +160,49 @@ export function Editor({
             </label>
           </div>
         )}
+
+        <div className="steps-edit">
+          <span className="steps-label">Steps</span>
+          {draft.steps.map((step, index) => (
+            <div className="step-edit" key={step.id}>
+              <input
+                aria-label={`Step ${index + 1}`}
+                placeholder="Step"
+                value={step.title}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    steps: draft.steps.map((item) =>
+                      item.id === step.id ? { ...item, title: event.target.value } : item,
+                    ),
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="step-remove"
+                aria-label={`Remove step ${index + 1}`}
+                onClick={() =>
+                  setDraft({ ...draft, steps: draft.steps.filter((item) => item.id !== step.id) })
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="add-step"
+            onClick={() =>
+              setDraft({
+                ...draft,
+                steps: [...draft.steps, { id: crypto.randomUUID(), title: "", done: false }],
+              })
+            }
+          >
+            + Add a step
+          </button>
+        </div>
 
         {error && <p className="editor-error">{error}</p>}
 
@@ -183,19 +228,3 @@ export function Editor({
   )
 }
 
-function ScheduleChoice({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string
-  checked: boolean
-  onChange: () => void
-}) {
-  return (
-    <label className="choice">
-      <input type="radio" name="schedule" checked={checked} onChange={onChange} />
-      {label}
-    </label>
-  )
-}

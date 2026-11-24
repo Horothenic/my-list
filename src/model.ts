@@ -5,11 +5,18 @@ export type DailySchedule =
   | { kind: "weekdays" }
   | { kind: "days"; days: number[] }
 
+export type Step = {
+  id: string
+  title: string
+  done: boolean
+}
+
 export type Daily = {
   id: string
   title: string
   description: string
   schedule: DailySchedule
+  steps: Step[]
   doneOn: string | null
 }
 
@@ -19,6 +26,7 @@ export type Todo = {
   description: string
   start: string
   due: string
+  steps: Step[]
   doneOn: string | null
 }
 
