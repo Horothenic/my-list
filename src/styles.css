@@ -397,6 +397,7 @@ button.item {
 .from { color: #6E7781; }
 .due { color: #9DA7B3; }
 .due.soon { color: #E3B341; }
+.due.late { color: #F47067; }
 
 @media (max-width: 760px) {
   .vdiv, .toolbar-date, .pane-head { display: none; }

@@ -897,7 +897,7 @@ export function App() {
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
                       {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
-                      <span className="due">Due {formatMonthDay(item.due)}</span>
+                      <span className={marker.color === "#F47067" ? "due late" : "due"}>Due {formatMonthDay(item.due)}</span>
                     </span>
                   </button>
                   <StepsBlock
