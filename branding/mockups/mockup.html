@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My List mockup</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #1E2227;
+    color: #E6EDF3;
+    font: 14px/1.4 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  body.desktop { width: 1440px; height: 900px; }
+  body.phone { width: 390px; height: 844px; }
+
+  .app { height: 100%; display: flex; flex-direction: column; }
+
+  .toolbar {
+    height: 52px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px 0 16px;
+    background: #24292F;
+    border-bottom: 1px solid #373E47;
+    position: relative;
+    z-index: 4;
+  }
+  .logo { width: 22px; height: 22px; display: block; flex: none; }
+  .name { font-weight: 600; font-size: 14px; }
+  .vdiv { width: 1px; height: 20px; background: #373E47; margin: 0 6px; flex: none; }
+  .toolbar-date { color: #9DA7B3; font-size: 13px; }
+  .source { margin-left: auto; position: relative; }
+
+  .menu-btn, .plus-btn {
+    height: 28px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #9DA7B3;
+    font: inherit;
+    display: inline-flex;
+    align-items: center;
+  }
+  .menu-btn {
+    gap: 8px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border-color: #373E47;
+    color: #E6EDF3;
+    font-size: 13px;
+  }
+  .plus-btn {
+    width: 28px;
+    margin-left: auto;
+    justify-content: center;
+    padding: 0;
+    border-color: #373E47;
+    border-radius: 6px;
+    background: #2D333B;
+    color: #E6EDF3;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .caret {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #9DA7B3;
+  }
+  .menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    padding: 6px;
+    background: #24292F;
+    border: 1px solid #373E47;
+    border-radius: 8px;
+    z-index: 6;
+  }
+  .menu.wide { min-width: 260px; }
+  .menu-label {
+    margin: 4px 8px 6px;
+    color: #6E7781;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  .option.on { background: #1B3354; }
+  .radio {
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    flex: none;
+    border: 1.5px solid #6E7781;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+  }
+  .option.on .radio { border-color: #4493F8; }
+  .radio i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .option.on .radio i { background: #4493F8; }
+  .opt-title { display: block; font-size: 13px; font-weight: 600; }
+  .opt-sub { display: block; margin-top: 1px; color: #9DA7B3; font-size: 12px; }
+  .option.check-row { align-items: center; }
+  .tick {
+    width: 16px;
+    text-align: center;
+    color: #4493F8;
+    font-size: 13px;
+    flex: none;
+  }
+  .menu-note {
+    margin: 4px 8px 6px;
+    padding-top: 6px;
+    border-top: 1px solid #373E47;
+    color: #6E7781;
+    font-size: 12px;
+  }
+
+  .segment {
+    display: none;
+    margin: 12px 16px 0;
+    border: 1px solid #373E47;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: none;
+  }
+  .seg {
+    flex: 1;
+    text-align: center;
+    height: 36px;
+    line-height: 36px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #9DA7B3;
+  }
+  .seg + .seg { border-left: 1px solid #373E47; }
+
+  .phone-tools {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 12px 12px 4px 16px;
+    position: relative;
+    z-index: 3;
+  }
+  .phone-tools .menu {
+    position: static;
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
+  .when { color: #9DA7B3; font-size: 13px; }
+  .head-actions { display: contents; }
+  .filter { position: relative; }
+
+  .columns { display: flex; flex: 1; min-height: 0; }
+  .pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .pane-dailies { width: 500px; border-right: 1px solid #373E47; }
+  .pane-todos { flex: 1; }
+
+  .pane-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid #373E47;
+  }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #2A313A;
+  }
+  .check {
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    flex: none;
+    border: 1.5px solid #6E7781;
+    border-radius: 4px;
+  }
+  .item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .pane-dailies .item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 16px;
+    row-gap: 2px;
+    align-items: center;
+  }
+  .title { font-size: 14px; }
+  .pane-dailies .title { grid-column: 1; grid-row: 1; }
+  .desc { color: #9DA7B3; font-size: 12px; }
+  .pane-dailies .desc { grid-column: 1; grid-row: 2; }
+  .pane-dailies .tag { grid-column: 2; grid-row: 1 / span 2; }
+  .dates { margin-top: 2px; }
+  .tag {
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: #2D333B;
+    color: #9DA7B3;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .dates {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .from { color: #6E7781; }
+  .due { color: #9DA7B3; }
+  .due.soon { color: #E3B341; }
+
+  body.desktop .pane-todos .pane-head { padding-right: 280px; }
+  body.desktop .source .menu { display: block; }
+  body.desktop .source .menu-btn {
+    background: #1B3354;
+    border-color: #4493F8;
+  }
+
+  body.phone .vdiv,
+  body.phone .toolbar-date,
+  body.phone .pane-head { display: none; }
+  body.phone .segment { display: flex; }
+  body.phone .pane-dailies { width: auto; flex: 1; border-right: 0; }
+  body.phone.dailies .pane-todos,
+  body.phone.todos .pane-dailies { display: none; }
+  body.phone.dailies .dailies-tools,
+  body.phone.todos .todos-tools { display: flex; }
+  body.phone.dailies .dailies-seg,
+  body.phone.todos .todos-seg { background: #1B3354; color: #E6EDF3; }
+  body.phone.dailies .dailies-tools .menu,
+  body.phone.todos .todos-tools .menu { display: block; }
+  body.phone.dailies .dailies-tools .menu-btn,
+  body.phone.todos .todos-tools .menu-btn {
+    background: #1B3354;
+    border-color: #4493F8;
+  }
+
+  body.phone .rows li { padding: 12px 16px; }
+  body.phone .dates { justify-content: flex-start; gap: 14px; }
+</style>
+</head>
+<body class="desktop">
+  <div class="app">
+    <header class="toolbar">
+      <svg class="logo" viewBox="29 23 62 76" aria-hidden="true">
+        <path d="M33.4 37.2 C46 37.2 53 33.7 60 28.1 C67 33.7 74 37.2 86.6 37.2 L86.6 58.9 C86.6 77.1 75.4 88.3 60 93.9 C44.6 88.3 33.4 77.1 33.4 58.9 Z" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
+        <g fill="#FFFFFF">
+          <rect x="45.75" y="44.5" width="8" height="8" rx="1.8"/>
+          <rect x="57.75" y="46.9" width="16.5" height="3.2" rx="1.6"/>
+          <rect x="45.75" y="56" width="8" height="8" rx="1.8"/>
+          <rect x="57.75" y="58.4" width="16.5" height="3.2" rx="1.6"/>
+          <rect x="45.75" y="67.5" width="8" height="8" rx="1.8"/>
+          <rect x="57.75" y="69.9" width="16.5" height="3.2" rx="1.6"/>
+        </g>
+      </svg>
+      <span class="name">My List</span>
+      <span class="vdiv"></span>
+      <span class="toolbar-date">Tuesday, Nov 24</span>
+      <div class="source">
+        <span class="menu-btn">Source <i class="caret"></i></span>
+        <div class="menu wide">
+          <div class="menu-label">One source at a time</div>
+          <div class="option on">
+            <span class="radio"><i></i></span>
+            <span>
+              <span class="opt-title">Local file</span>
+              <span class="opt-sub">On this computer. This is the default.</span>
+            </span>
+          </div>
+          <div class="option">
+            <span class="radio"><i></i></span>
+            <span>
+              <span class="opt-title">Google Drive</span>
+              <span class="opt-sub">Optional. One file in your Drive.</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="segment">
+      <span class="seg dailies-seg">Dailies</span>
+      <span class="seg todos-seg">Todos</span>
+    </div>
+
+    <div class="phone-tools dailies-tools">
+      <span class="when">Tuesday, Nov 24</span>
+      <div class="head-actions">
+        <span class="menu-btn">Remaining <i class="caret"></i></span>
+        <span class="plus-btn">+</span>
+      </div>
+      <div class="menu">
+        <div class="option check-row on"><span class="tick">✓</span><span class="opt-title">Remaining</span></div>
+        <div class="option check-row"><span class="tick"></span><span class="opt-title">Done today</span></div>
+        <div class="option check-row"><span class="tick"></span><span class="opt-title">All</span></div>
+      </div>
+    </div>
+    <div class="phone-tools todos-tools">
+      <span class="when">Tuesday, Nov 24</span>
+      <div class="head-actions">
+        <span class="menu-btn">Now <i class="caret"></i></span>
+        <span class="plus-btn">+</span>
+      </div>
+      <div class="menu">
+        <div class="option check-row on"><span class="tick">✓</span><span class="opt-title">Now</span></div>
+        <div class="option check-row"><span class="tick"></span><span class="opt-title">Later</span></div>
+        <div class="option check-row"><span class="tick"></span><span class="opt-title">Overdue</span></div>
+        <div class="option check-row"><span class="tick"></span><span class="opt-title">Done</span></div>
+        <div class="menu-note">Always ordered by due date</div>
+      </div>
+    </div>
+
+    <div class="columns">
+      <section class="pane pane-dailies">
+        <div class="pane-head">
+          <h1>Dailies</h1>
+          <div class="head-actions">
+            <div class="filter">
+              <span class="menu-btn">Remaining <i class="caret"></i></span>
+            </div>
+            <span class="plus-btn">+</span>
+          </div>
+        </div>
+        <ul class="rows">
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Stretch</span>
+              <span class="desc">Ten minutes on the floor</span>
+              <span class="tag">Every day</span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Language practice</span>
+              <span class="desc">One lesson, out loud</span>
+              <span class="tag">Weekdays</span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Walk</span>
+              <span class="desc">Around the block</span>
+              <span class="tag">Tue, Thu, Sat</span>
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="pane pane-todos">
+        <div class="pane-head">
+          <h1>Todos</h1>
+          <div class="head-actions">
+            <div class="filter">
+              <span class="menu-btn">Now <i class="caret"></i></span>
+            </div>
+            <span class="plus-btn">+</span>
+          </div>
+        </div>
+        <ul class="rows">
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Send the insurance form</span>
+              <span class="desc">Scan the signed pages and email them</span>
+              <span class="dates"><span class="from">From Nov 22</span><span class="due soon">Due Nov 25</span></span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Buy a gift for Ana</span>
+              <span class="desc">Something she can open on Sunday</span>
+              <span class="dates"><span class="from">From Nov 20</span><span class="due soon">Due Nov 26</span></span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Book the dentist</span>
+              <span class="desc">A cleaning, morning if they have it</span>
+              <span class="dates"><span class="from">From Nov 24</span><span class="due">Due Nov 28</span></span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Replace the furnace filter</span>
+              <span class="desc">The 16 by 25 size, two of them</span>
+              <span class="dates"><span class="from">From Nov 10</span><span class="due">Due Dec 1</span></span>
+            </span>
+          </li>
+          <li>
+            <span class="check"></span>
+            <span class="item">
+              <span class="title">Write the rental letter</span>
+              <span class="desc">Ask for the leak to be fixed</span>
+              <span class="dates"><span class="from">From Nov 18</span><span class="due">Due Dec 5</span></span>
+            </span>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
