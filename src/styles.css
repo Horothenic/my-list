@@ -80,7 +80,7 @@ button { font: inherit; color: inherit; }
 .menu {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  left: 0;
   min-width: 220px;
   padding: 6px;
   background: #24292F;
@@ -89,7 +89,7 @@ button { font: inherit; color: inherit; }
   z-index: 6;
 }
 
-.menu.wide { min-width: 260px; left: auto; }
+.menu.wide { min-width: 260px; left: auto; right: 0; }
 
 .menu-label, .menu-note {
   margin: 4px 8px 6px;
