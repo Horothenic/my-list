@@ -1,8 +1,18 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { parseListDocument, type ListDocument } from "./document"
 import { Editor, type Draft } from "./Editor"
 import { Logo } from "./Logo"
 import {
-  addDays,
+  allowStoredFile,
+  downloadList,
+  filePickerAvailable,
+  loadLocal,
+  openListFile,
+  persistLocal,
+  pickerWasCancelled,
+  saveListFile,
+} from "./localStore"
+import {
   dailyFilterLabel,
   dueMarker,
   formatMonthDay,
@@ -37,9 +47,14 @@ export function App() {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("remaining")
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("now")
-  const [dailies, setDailies] = useState<Daily[]>(sampleDailies)
-  const [todos, setTodos] = useState<Todo[]>(() => sampleTodos.filter((item) => todoStillKept(item, today)))
+  const [dailies, setDailies] = useState<Daily[]>([])
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [needsPermission, setNeedsPermission] = useState(false)
+  const [storageNote, setStorageNote] = useState<string | null>(null)
   const [editor, setEditor] = useState<Draft | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
   const [dailiesWidth, setDailiesWidth] = useState(500)
   const [dragging, setDragging] = useState(false)
@@ -62,6 +77,56 @@ export function App() {
       document.removeEventListener("keydown", onKey)
     }
   }, [openMenu])
+
+  useEffect(() => {
+    let cancel = false
+    const fallback: ListDocument = {
+      version: 1,
+      dailies: sampleDailies,
+      todos: sampleTodos.filter((item) => todoStillKept(item, today)),
+    }
+    loadLocal(fallback)
+      .then((snapshot) => {
+        if (cancel) return
+        showDocument(snapshot.document)
+        setFileName(snapshot.fileName)
+        setNeedsPermission(snapshot.needsPermission)
+        setLoaded(true)
+      })
+      .catch(() => {
+        if (cancel) return
+        showDocument(fallback)
+        setStorageNote("Could not open the saved list.")
+        setLoaded(true)
+      })
+    return () => {
+      cancel = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!loaded) return
+    const timer = window.setTimeout(() => {
+      const doc: ListDocument = {
+        version: 1,
+        dailies,
+        todos: todos.filter((item) => todoStillKept(item, today)),
+      }
+      persistLocal(doc)
+        .then((result) => {
+          setFileName(result.fileName)
+          setNeedsPermission(result.needsPermission)
+          setStorageNote(null)
+        })
+        .catch(() => setStorageNote("Could not save the list."))
+    }, 200)
+    return () => window.clearTimeout(timer)
+  }, [loaded, dailies, todos])
+
+  function showDocument(doc: ListDocument) {
+    setDailies(doc.dailies)
+    setTodos(doc.todos.filter((item) => todoStillKept(item, today)))
+  }
 
   function toggleMenu(menu: Exclude<OpenMenu, null>) {
     setOpenMenu((current) => (current === menu ? null : menu))
@@ -90,7 +155,7 @@ export function App() {
 
   function openNewTodo() {
     setOpenMenu(null)
-    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: addDays(today, 7), steps: [] })
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: today, steps: [] })
   }
 
   function openDaily(item: Daily) {
@@ -191,6 +256,70 @@ export function App() {
     document.addEventListener("pointerup", stop)
   }
 
+  async function chooseFile() {
+    setStorageNote(null)
+    try {
+      if (!filePickerAvailable()) {
+        fileInputRef.current?.click()
+        return
+      }
+      const opened = await openListFile()
+      if (!opened) return
+      showDocument(opened.document)
+      setFileName(opened.handle.name)
+      setNeedsPermission(false)
+      setOpenMenu(null)
+    } catch (error) {
+      if (pickerWasCancelled(error)) return
+      setStorageNote(error instanceof Error && error.message === "invalid" ? "That file is not a My List file." : "Could not open that file.")
+    }
+  }
+
+  async function saveAsFile() {
+    setStorageNote(null)
+    const doc: ListDocument = { version: 1, dailies, todos }
+    try {
+      if (!filePickerAvailable()) {
+        downloadList(doc, fileName)
+        return
+      }
+      const handle = await saveListFile(doc)
+      if (!handle) return
+      setFileName(handle.name)
+      setNeedsPermission(false)
+      setOpenMenu(null)
+    } catch (error) {
+      if (pickerWasCancelled(error)) return
+      setStorageNote("Could not save that file.")
+    }
+  }
+
+  async function allowFile() {
+    setStorageNote(null)
+    try {
+      const opened = await allowStoredFile()
+      if (!opened) return
+      showDocument(opened.document)
+      setFileName(opened.handle.name)
+      setNeedsPermission(false)
+    } catch (error) {
+      setStorageNote(error instanceof Error && error.message === "invalid" ? "That file is not a My List file." : "Could not open that file.")
+    }
+  }
+
+  async function onFileInput(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+    const doc = parseListDocument(await file.text())
+    if (!doc) {
+      setStorageNote("That file is not a My List file.")
+      return
+    }
+    showDocument(doc)
+    setOpenMenu(null)
+  }
+
   function deleteDraft() {
     if (!editor?.id) return
     if (editor.mode === "daily") setDailies((items) => items.filter((item) => item.id !== editor.id))
@@ -222,16 +351,38 @@ export function App() {
               <div className="menu-label">One source at a time</div>
               <SourceOption
                 title="Local file"
-                detail="On this computer. This is the default."
+                detail={
+                  fileName
+                    ? needsPermission
+                      ? `${fileName} needs permission to save.`
+                      : fileName
+                    : "Saved in this browser. Choose a file to keep your own copy."
+                }
                 selected={source === "local"}
                 onSelect={() => {
                   setSource("local")
                   setOpenMenu(null)
                 }}
               />
+              {source === "local" && (
+                <div className="source-actions">
+                  <button type="button" className="menu-action" onClick={() => void chooseFile()}>
+                    Open a file
+                  </button>
+                  <button type="button" className="menu-action" onClick={() => void saveAsFile()}>
+                    {filePickerAvailable() ? "Save as a new file" : "Download a copy"}
+                  </button>
+                  {needsPermission && (
+                    <button type="button" className="menu-action" onClick={() => void allowFile()}>
+                      Allow this file
+                    </button>
+                  )}
+                </div>
+              )}
+              {storageNote && <div className="storage-note">{storageNote}</div>}
               <SourceOption
                 title="Google Drive"
-                detail="Optional. One file in your Drive."
+                detail="Optional. Sign-in comes later. The list stays in the local file."
                 selected={source === "drive"}
                 onSelect={() => {
                   setSource("drive")
@@ -240,6 +391,7 @@ export function App() {
               />
             </div>
           )}
+          <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
         </div>
       </header>
 

@@ -94,6 +94,25 @@ button { font: inherit; color: inherit; }
 
 .menu.wide { min-width: 260px; left: auto; right: 0; }
 
+.source-actions { display: flex; flex-direction: column; gap: 2px; margin: 0 4px 6px; }
+
+.menu-action {
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #E6EDF3;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-action:hover { background: #2D333B; }
+
+.storage-note { margin: 2px 8px 8px; color: #F47067; font-size: 12px; }
+
 .menu-label, .menu-note {
   margin: 4px 8px 6px;
   color: #6E7781;
@@ -253,10 +272,10 @@ button.item {
 .rows > li:hover { background: #2A313A; }
 
 .marker {
-  width: 3px;
+  width: 8px;
   align-self: stretch;
   margin: 2px 0;
-  border-radius: 2px;
+  border-radius: 4px;
   flex: none;
 }
 
