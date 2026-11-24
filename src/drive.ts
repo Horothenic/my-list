@@ -43,6 +43,8 @@ declare global {
 
 type CachedToken = { value: string; expiresAt: number }
 
+const TOKEN_KEY = "my-list-drive-token"
+
 let scriptPromise: Promise<void> | null = null
 let cachedToken: CachedToken | null = null
 
@@ -99,18 +101,43 @@ export function loadGoogleIdentity(): Promise<void> {
 }
 
 export function currentDriveToken(): string | null {
+  if (!cachedToken) cachedToken = readStoredToken()
   if (!cachedToken) return null
   if (Date.now() >= cachedToken.expiresAt) {
     cachedToken = null
+    sessionStorage.removeItem(TOKEN_KEY)
     return null
   }
   return cachedToken.value
 }
 
 export function clearDriveToken() {
-  const value = cachedToken?.value
+  const value = currentDriveToken()
   cachedToken = null
+  sessionStorage.removeItem(TOKEN_KEY)
   if (value && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(value)
+}
+
+function rememberToken(token: CachedToken) {
+  cachedToken = token
+  try {
+    sessionStorage.setItem(TOKEN_KEY, JSON.stringify(token))
+  } catch {
+    // The token still works for this page load.
+  }
+}
+
+function readStoredToken(): CachedToken | null {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { value?: unknown; expiresAt?: unknown }
+    if (typeof parsed.value !== "string" || typeof parsed.expiresAt !== "number") return null
+    if (Date.now() >= parsed.expiresAt) return null
+    return { value: parsed.value, expiresAt: parsed.expiresAt }
+  } catch {
+    return null
+  }
 }
 
 export function requestDriveToken(prompt: "" | "select_account"): Promise<string> {
@@ -132,7 +159,7 @@ export function requestDriveToken(prompt: "" | "select_account"): Promise<string
             reject(new Error(error || "auth"))
             return
           }
-          cachedToken = { value: accessToken, expiresAt: Date.now() + (expiresIn ?? 3600) * 1000 - 60_000 }
+          rememberToken({ value: accessToken, expiresAt: Date.now() + (expiresIn ?? 3600) * 1000 - 60_000 })
           resolve(accessToken)
         }
         const client = google.accounts.oauth2.initTokenClient({

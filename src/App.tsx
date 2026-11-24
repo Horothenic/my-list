@@ -177,7 +177,8 @@ export function App() {
         const gen = ++connectGen.current
         connectingRef.current = true
         try {
-          const token = await requestDriveToken("")
+          let token = currentDriveToken()
+          if (!token) token = await requestDriveToken("")
           if (cancel || connectGen.current !== gen) return
           setDriveSignedIn(true)
           const doc = listDocument()
@@ -186,16 +187,12 @@ export function App() {
           applyDriveSync(sync, doc)
         } catch (error) {
           if (cancel || connectGen.current !== gen) return
-          if (error instanceof Error && error.message === "google-script") {
-            setDriveBanner({ kind: "error", message: "Could not reach Google." })
+          if (currentDriveToken() && !driveNeedsSignIn(error)) {
+            setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not open Google Drive.") })
             return
           }
-          if (!currentDriveToken() || driveNeedsSignIn(error)) {
-            setDriveSignedIn(false)
-            setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
-            return
-          }
-          setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not open Google Drive.") })
+          clearDriveToken()
+          setDriveSignedIn(false)
         } finally {
           if (connectGen.current === gen) connectingRef.current = false
         }
