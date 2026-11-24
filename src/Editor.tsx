@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
-import type { DailySchedule, Step } from "./model"
+import type { DailySchedule, MonthWeek, Step } from "./model"
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const OCCURRENCE = ["First", "Second", "Third", "Fourth", "Last"]
 
 export type ScheduleKind = DailySchedule["kind"]
 
@@ -13,6 +15,9 @@ export type Draft =
       description: string
       scheduleKind: ScheduleKind
       days: number[]
+      monthDay: number
+      monthWeek: MonthWeek
+      monthWeekday: number
       steps: Step[]
     }
   | {
@@ -114,8 +119,55 @@ export function Editor({
                 <option value="every-day">Every day</option>
                 <option value="weekdays">Weekdays</option>
                 <option value="days">Specific days</option>
+                <option value="month-day">Day of the month</option>
+                <option value="month-weekday">Weekday of the month</option>
               </select>
             </label>
+            {draft.scheduleKind === "month-day" && (
+              <label>
+                Day
+                <select
+                  value={draft.monthDay}
+                  onChange={(event) => setDraft({ ...draft, monthDay: Number(event.target.value) })}
+                >
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {draft.scheduleKind === "month-weekday" && (
+              <div className="schedule-row">
+                <label>
+                  Week
+                  <select
+                    value={draft.monthWeek}
+                    onChange={(event) => setDraft({ ...draft, monthWeek: Number(event.target.value) as MonthWeek })}
+                  >
+                    {OCCURRENCE.map((label, index) => (
+                      <option key={label} value={index + 1}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Day
+                  <select
+                    value={draft.monthWeekday}
+                    onChange={(event) => setDraft({ ...draft, monthWeekday: Number(event.target.value) })}
+                  >
+                    {WEEKDAY_NAMES.map((label, day) => (
+                      <option key={label} value={day}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
             {draft.scheduleKind === "days" && (
               <div className="days">
                 {DAY_LABELS.map((label, day) => {

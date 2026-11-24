@@ -482,6 +482,8 @@ button.item {
 
 .schedule { margin-bottom: 12px; }
 .schedule label { margin-bottom: 8px; }
+.schedule-row { display: flex; gap: 8px; }
+.schedule-row label { flex: 1; min-width: 0; }
 
 .days { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
 

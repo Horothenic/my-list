@@ -1,4 +1,4 @@
-import type { Daily, DailySchedule, Step, Todo } from "./model"
+import type { Daily, DailySchedule, MonthWeek, Step, Todo } from "./model"
 
 export type ListDocument = {
   version: 1
@@ -74,6 +74,20 @@ function parseTodo(value: unknown): Todo | null {
 function parseSchedule(value: unknown): DailySchedule | null {
   if (!isRecord(value)) return null
   if (value.kind === "every-day" || value.kind === "weekdays") return { kind: value.kind }
+  if (value.kind === "month-day" && typeof value.day === "number" && value.day >= 1 && value.day <= 31) {
+    return { kind: "month-day", day: value.day }
+  }
+  if (
+    value.kind === "month-weekday" &&
+    typeof value.week === "number" &&
+    value.week >= 1 &&
+    value.week <= 5 &&
+    typeof value.day === "number" &&
+    value.day >= 0 &&
+    value.day <= 6
+  ) {
+    return { kind: "month-weekday", week: value.week as MonthWeek, day: value.day }
+  }
   if (value.kind !== "days" || !Array.isArray(value.days)) return null
   const days = value.days.filter((day): day is number => typeof day === "number" && day >= 0 && day <= 6)
   return { kind: "days", days }
