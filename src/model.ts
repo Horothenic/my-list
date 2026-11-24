@@ -1,9 +1,13 @@
 export type SourceId = "local" | "drive"
 
+export type MonthWeek = 1 | 2 | 3 | 4 | 5
+
 export type DailySchedule =
   | { kind: "every-day" }
   | { kind: "weekdays" }
   | { kind: "days"; days: number[] }
+  | { kind: "month-day"; day: number }
+  | { kind: "month-weekday"; week: MonthWeek; day: number }
 
 export type Step = {
   id: string
@@ -30,12 +34,14 @@ export type Todo = {
   doneOn: string | null
 }
 
-export type DailyFilter = "remaining" | "done" | "all"
-export type TodoFilter = "now" | "later" | "overdue" | "done"
+export type DailyFilter = "all" | "due"
+export type TodoFilter = "all" | "due" | "planned"
 export type Pane = "dailies" | "todos"
 export type OpenMenu = "source" | "daily" | "todo" | null
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+const OCCURRENCE = ["First", "Second", "Third", "Fourth", "Last"]
 
 export function isoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0")
@@ -65,7 +71,30 @@ export function formatToolbarDate(date: Date): string {
 export function scheduleLabel(schedule: DailySchedule): string {
   if (schedule.kind === "every-day") return "Every day"
   if (schedule.kind === "weekdays") return "Weekdays"
+  if (schedule.kind === "month-day") return `${ordinal(schedule.day)} of the month`
+  if (schedule.kind === "month-weekday") return `${OCCURRENCE[schedule.week - 1]} ${WEEKDAY[schedule.day]}`
   return schedule.days.map((day) => DAY[day]).join(", ")
+}
+
+export function scheduledOn(schedule: DailySchedule, today: string): boolean {
+  const date = parseIso(today)
+  const weekday = date.getDay()
+  if (schedule.kind === "every-day") return true
+  if (schedule.kind === "weekdays") return weekday >= 1 && weekday <= 5
+  if (schedule.kind === "days") return schedule.days.includes(weekday)
+  if (schedule.kind === "month-day") return date.getDate() === schedule.day
+  if (weekday !== schedule.day) return false
+  if (schedule.week === 5) return parseIso(addDays(today, 7)).getMonth() !== date.getMonth()
+  return Math.floor((date.getDate() - 1) / 7) + 1 === schedule.week
+}
+
+function ordinal(day: number): string {
+  const teen = day % 100
+  if (teen >= 11 && teen <= 13) return `${day}th`
+  if (day % 10 === 1) return `${day}st`
+  if (day % 10 === 2) return `${day}nd`
+  if (day % 10 === 3) return `${day}rd`
+  return `${day}th`
 }
 
 export function dueIsSoon(due: string, today: string): boolean {
@@ -95,9 +124,8 @@ export function dueMarker(due: string, today: string, done: boolean): { color: s
 }
 
 export function visibleDailies(items: Daily[], filter: DailyFilter, today: string): Daily[] {
-  if (filter === "done") return items.filter((item) => item.doneOn === today)
-  if (filter === "remaining") return items.filter((item) => item.doneOn !== today)
-  return items
+  if (filter === "all") return items
+  return items.filter((item) => item.doneOn !== today && scheduledOn(item.schedule, today))
 }
 
 /** A finished todo stays through the 7th day after it was completed, then it is removed. */
@@ -110,25 +138,21 @@ export function visibleTodos(items: Todo[], filter: TodoFilter, today: string): 
   const kept = items.filter((item) => todoStillKept(item, today))
   const open = kept.filter((item) => item.doneOn === null)
   const list =
-    filter === "done"
-      ? kept.filter((item) => item.doneOn !== null)
-      : filter === "later"
+    filter === "all"
+      ? kept
+      : filter === "planned"
         ? open.filter((item) => item.start !== null && item.start > today)
-        : filter === "overdue"
-          ? open.filter((item) => item.due < today)
-          : open.filter((item) => (item.start === null || item.start <= today) && item.due >= today)
+        : open.filter((item) => item.start === null || item.start <= today)
   return [...list].sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title))
 }
 
 export const dailyFilterLabel: Record<DailyFilter, string> = {
-  remaining: "Remaining",
-  done: "Done today",
   all: "All",
+  due: "Due",
 }
 
 export const todoFilterLabel: Record<TodoFilter, string> = {
-  now: "Now",
-  later: "Later",
-  overdue: "Overdue",
-  done: "Done",
+  all: "All",
+  due: "Due",
+  planned: "Planned",
 }

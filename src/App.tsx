@@ -37,6 +37,7 @@ import {
   formatToolbarDate,
   isoDate,
   scheduleLabel,
+  scheduledOn,
   todoFilterLabel,
   todoStillKept,
   visibleDailies,
@@ -56,15 +57,22 @@ import { sampleDailies, sampleTodos } from "./sample"
 const today = isoDate(new Date())
 const toolbarDate = formatToolbarDate(new Date())
 
-const dailyFilters: DailyFilter[] = ["remaining", "done", "all"]
-const todoFilters: TodoFilter[] = ["now", "later", "overdue", "done"]
+function scheduleFromDraft(draft: Extract<Draft, { mode: "daily" }>): DailySchedule {
+  if (draft.scheduleKind === "days") return { kind: "days", days: [...draft.days].sort((a, b) => a - b) }
+  if (draft.scheduleKind === "month-day") return { kind: "month-day", day: draft.monthDay }
+  if (draft.scheduleKind === "month-weekday") return { kind: "month-weekday", week: draft.monthWeek, day: draft.monthWeekday }
+  return { kind: draft.scheduleKind }
+}
+
+const dailyFilters: DailyFilter[] = ["all", "due"]
+const todoFilters: TodoFilter[] = ["all", "due", "planned"]
 
 export function App() {
   const [source, setSource] = useState<SourceId>("local")
   const [pane, setPane] = useState<Pane>("dailies")
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
-  const [dailyFilter, setDailyFilter] = useState<DailyFilter>("remaining")
-  const [todoFilter, setTodoFilter] = useState<TodoFilter>("now")
+  const [dailyFilter, setDailyFilter] = useState<DailyFilter>("due")
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>("due")
   const [dailies, setDailies] = useState<Daily[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -431,7 +439,18 @@ export function App() {
 
   function openNewDaily() {
     setOpenMenu(null)
-    setEditor({ mode: "daily", id: null, title: "", description: "", scheduleKind: "every-day", days: [], steps: [] })
+    setEditor({
+      mode: "daily",
+      id: null,
+      title: "",
+      description: "",
+      scheduleKind: "every-day",
+      days: [],
+      monthDay: 1,
+      monthWeek: 1,
+      monthWeekday: 4,
+      steps: [],
+    })
   }
 
   function openNewTodo() {
@@ -448,6 +467,9 @@ export function App() {
       description: item.description,
       scheduleKind: item.schedule.kind,
       days: item.schedule.kind === "days" ? item.schedule.days : [],
+      monthDay: item.schedule.kind === "month-day" ? item.schedule.day : 1,
+      monthWeek: item.schedule.kind === "month-weekday" ? item.schedule.week : 1,
+      monthWeekday: item.schedule.kind === "month-weekday" ? item.schedule.day : 4,
       steps: item.steps.map((step) => ({ ...step })),
     })
   }
@@ -467,10 +489,7 @@ export function App() {
 
   function saveDraft(draft: Draft) {
     if (draft.mode === "daily") {
-      const schedule: DailySchedule =
-        draft.scheduleKind === "days"
-          ? { kind: "days", days: [...draft.days].sort((a, b) => a - b) }
-          : { kind: draft.scheduleKind }
+      const schedule = scheduleFromDraft(draft)
       const next: Daily = {
         id: draft.id ?? crypto.randomUUID(),
         title: draft.title,
@@ -480,7 +499,7 @@ export function App() {
         doneOn: draft.id ? (dailies.find((item) => item.id === draft.id)?.doneOn ?? null) : null,
       }
       setDailies((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
-      if (!draft.id) setDailyFilter("remaining")
+      if (!draft.id) setDailyFilter(scheduledOn(schedule, today) ? "due" : "all")
       setPane("dailies")
     } else {
       const previous = draft.id ? todos.find((item) => item.id === draft.id) : undefined
@@ -494,7 +513,7 @@ export function App() {
         doneOn: previous?.doneOn ?? null,
       }
       setTodos((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
-      setTodoFilter(next.doneOn ? "done" : next.start !== null && next.start > today ? "later" : next.due < today ? "overdue" : "now")
+      setTodoFilter(next.doneOn ? "all" : next.start !== null && next.start > today ? "planned" : "due")
       setPane("todos")
     }
     setEditor(null)
@@ -745,7 +764,7 @@ export function App() {
             open={openMenu === "todo"}
             label={todoFilterLabel[todoFilter]}
             onToggle={() => toggleMenu("todo")}
-            note="Always ordered by due date"
+            note="Finished ones stay for a week. Ordered by due date."
           >
             {todoFilters.map((filter) => (
               <FilterOption
@@ -839,7 +858,7 @@ export function App() {
               open={openMenu === "todo"}
               label={todoFilterLabel[todoFilter]}
               onToggle={() => toggleMenu("todo")}
-              note="Always ordered by due date"
+              note="Finished ones stay for a week. Ordered by due date."
             >
               {todoFilters.map((filter) => (
                 <FilterOption
