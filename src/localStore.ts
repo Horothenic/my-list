@@ -1,9 +1,16 @@
 import { parseListDocument, serializeList, type ListDocument } from "./document"
+import type { SourceId } from "./model"
 
 const DB_NAME = "my-list"
 const STORE = "local"
 const DOCUMENT_KEY = "document"
 const HANDLE_KEY = "handle"
+const SOURCE_KEY = "source"
+const LOCAL_DOCUMENT_KEY = "localDocument"
+const DRIVE_FILE_KEY = "driveFile"
+const DRIVE_BASE_KEY = "driveBase"
+
+export type StoredDriveFile = { id: string; name: string }
 
 export const listFileTypes = [
   {
@@ -13,6 +20,15 @@ export const listFileTypes = [
 ]
 
 export type LocalSnapshot = {
+  document: ListDocument
+  fileName: string | null
+  needsPermission: boolean
+  source: SourceId
+  driveFile: StoredDriveFile | null
+  driveBase: string | null
+}
+
+export type LocalCopy = {
   document: ListDocument
   fileName: string | null
   needsPermission: boolean
@@ -26,19 +42,83 @@ export async function loadLocal(fallback: ListDocument): Promise<LocalSnapshot> 
   const db = await openDb()
   try {
     const stored = await idbGet<ListDocument>(db, DOCUMENT_KEY)
+    const source = parseSource(await idbGet<unknown>(db, SOURCE_KEY))
+    let localDocument = await idbGet<ListDocument>(db, LOCAL_DOCUMENT_KEY)
+    const driveFile = parseDriveFile(await idbGet<unknown>(db, DRIVE_FILE_KEY))
+    const driveBaseValue = await idbGet<unknown>(db, DRIVE_BASE_KEY)
+    const driveBase = typeof driveBaseValue === "string" ? driveBaseValue : null
     const handle = await idbGet<FileSystemFileHandle>(db, HANDLE_KEY)
-    let document = stored ?? fallback
-    let needsPermission = false
-    if (handle) {
-      const permission = await permissionState(handle)
-      if (permission === "granted") {
-        const parsed = await readHandle(handle)
-        if (parsed) document = parsed
-      } else {
-        needsPermission = true
-      }
+    if (!localDocument && stored) {
+      localDocument = stored
+      await idbSet(db, LOCAL_DOCUMENT_KEY, stored)
     }
-    return { document, fileName: handle?.name ?? null, needsPermission }
+    const file = await readGrantedFile(handle)
+    let document = source === "drive" ? (stored ?? fallback) : (file.document ?? localDocument ?? stored ?? fallback)
+    if (!stored) {
+      await idbSet(db, DOCUMENT_KEY, document)
+      if (!localDocument) await idbSet(db, LOCAL_DOCUMENT_KEY, document)
+    }
+    return {
+      document,
+      fileName: handle?.name ?? null,
+      needsPermission: file.needsPermission,
+      source,
+      driveFile,
+      driveBase,
+    }
+  } finally {
+    db.close()
+  }
+}
+
+export async function loadLocalCopy(): Promise<LocalCopy | null> {
+  const db = await openDb()
+  try {
+    const stored = await idbGet<ListDocument>(db, LOCAL_DOCUMENT_KEY)
+    const visible = await idbGet<ListDocument>(db, DOCUMENT_KEY)
+    const handle = await idbGet<FileSystemFileHandle>(db, HANDLE_KEY)
+    const file = await readGrantedFile(handle)
+    const document = file.document ?? stored ?? visible
+    if (!document) return null
+    return { document, fileName: handle?.name ?? null, needsPermission: file.needsPermission }
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveSource(source: SourceId) {
+  const db = await openDb()
+  try {
+    await idbSet(db, SOURCE_KEY, source)
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveVisible(doc: ListDocument) {
+  const db = await openDb()
+  try {
+    await idbSet(db, DOCUMENT_KEY, doc)
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveDriveSynced(doc: ListDocument, file: StoredDriveFile, base: string) {
+  const db = await openDb()
+  try {
+    await idbSet(db, DOCUMENT_KEY, doc)
+    await idbSet(db, DRIVE_FILE_KEY, file)
+    await idbSet(db, DRIVE_BASE_KEY, base)
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveDriveLink(file: StoredDriveFile) {
+  const db = await openDb()
+  try {
+    await idbSet(db, DRIVE_FILE_KEY, file)
   } finally {
     db.close()
   }
@@ -49,6 +129,7 @@ export async function persistLocal(doc: ListDocument): Promise<{ fileName: strin
   let handle: FileSystemFileHandle | undefined
   try {
     await idbSet(db, DOCUMENT_KEY, doc)
+    await idbSet(db, LOCAL_DOCUMENT_KEY, doc)
     handle = await idbGet<FileSystemFileHandle>(db, HANDLE_KEY)
   } finally {
     db.close()
@@ -124,6 +205,23 @@ async function writeHandle(handle: FileSystemFileHandle, doc: ListDocument) {
   const writable = await handle.createWritable()
   await writable.write(serializeList(doc))
   await writable.close()
+}
+
+async function readGrantedFile(handle: FileSystemFileHandle | undefined): Promise<{ document: ListDocument | null; needsPermission: boolean }> {
+  if (!handle) return { document: null, needsPermission: false }
+  if ((await permissionState(handle)) !== "granted") return { document: null, needsPermission: true }
+  return { document: await readHandle(handle), needsPermission: false }
+}
+
+function parseSource(value: unknown): SourceId {
+  return value === "drive" ? "drive" : "local"
+}
+
+function parseDriveFile(value: unknown): StoredDriveFile | null {
+  if (typeof value !== "object" || value === null) return null
+  const file = value as { id?: unknown; name?: unknown }
+  if (typeof file.id !== "string" || typeof file.name !== "string") return null
+  return { id: file.id, name: file.name }
 }
 
 async function permissionState(handle: FileSystemFileHandle): Promise<PermissionState> {
