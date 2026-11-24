@@ -20,7 +20,7 @@ export type Draft =
       id: string | null
       title: string
       description: string
-      start: string
+      start: string | null
       due: string
       steps: Step[]
     }
@@ -57,11 +57,11 @@ export function Editor({
       setError("Pick at least one day")
       return
     }
-    if (draft.mode === "todo" && (!draft.start || !draft.due)) {
-      setError("Add a start date and a due date")
+    if (draft.mode === "todo" && !draft.due) {
+      setError("Add a due date")
       return
     }
-    if (draft.mode === "todo" && draft.due < draft.start) {
+    if (draft.mode === "todo" && draft.start && draft.due < draft.start) {
       setError("The due date has to be on or after the start")
       return
     }
@@ -143,15 +143,29 @@ export function Editor({
         ) : (
           <div className="date-fields">
             <label>
-              Start
-              <input
-                type="date"
-                value={draft.start}
-                onChange={(event) => setDraft({ ...draft, start: event.target.value })}
-              />
+              <span className="field-name">
+                From <span className="optional">Optional</span>
+              </span>
+              <span className="date-line">
+                <input
+                  type="date"
+                  value={draft.start ?? ""}
+                  onChange={(event) => setDraft({ ...draft, start: event.target.value || null })}
+                />
+                {draft.start && (
+                  <button
+                    type="button"
+                    className="step-remove"
+                    aria-label="Clear from date"
+                    onClick={() => setDraft({ ...draft, start: null })}
+                  >
+                    <RemoveIcon />
+                  </button>
+                )}
+              </span>
             </label>
             <label>
-              Due
+              <span className="field-name">Due</span>
               <input
                 type="date"
                 value={draft.due}
@@ -186,7 +200,7 @@ export function Editor({
                   setDraft({ ...draft, steps: draft.steps.filter((item) => item.id !== step.id) })
                 }
               >
-                ×
+                <RemoveIcon />
               </button>
             </div>
           ))}
@@ -225,6 +239,14 @@ export function Editor({
         </div>
       </form>
     </div>
+  )
+}
+
+function RemoveIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4.2 4.2 L11.8 11.8 M11.8 4.2 L4.2 11.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   )
 }
 

@@ -24,7 +24,7 @@ export type Todo = {
   id: string
   title: string
   description: string
-  start: string
+  start: string | null
   due: string
   steps: Step[]
   doneOn: string | null
@@ -72,6 +72,28 @@ export function dueIsSoon(due: string, today: string): boolean {
   return due >= today && due <= addDays(today, 2)
 }
 
+type Rgb = [number, number, number]
+
+const GREEN: Rgb = [87, 171, 90]
+const AMBER: Rgb = [227, 179, 65]
+const RED: Rgb = [244, 112, 103]
+
+function mix(from: Rgb, to: Rgb, amount: number): string {
+  const channels = from.map((channel, index) => Math.round(channel + (to[index] - channel) * amount))
+  return `rgb(${channels[0]}, ${channels[1]}, ${channels[2]})`
+}
+
+/** Gray until the due date arrives, green on the due day, then a week-long ramp to red. */
+export function dueMarker(due: string, today: string, done: boolean): { color: string; label: string } {
+  if (done) return { color: "#6E7781", label: "Done" }
+  if (due > today) return { color: "#6E7781", label: "Not due yet" }
+  const late = Math.round((parseIso(today).getTime() - parseIso(due).getTime()) / 86_400_000)
+  if (late <= 0) return { color: "#57AB5A", label: "Due today" }
+  if (late >= 7) return { color: "#F47067", label: `${late} days overdue` }
+  const color = late <= 3 ? mix(GREEN, AMBER, late / 3) : mix(AMBER, RED, (late - 3) / 4)
+  return { color, label: late === 1 ? "1 day overdue" : `${late} days overdue` }
+}
+
 export function visibleDailies(items: Daily[], filter: DailyFilter, today: string): Daily[] {
   if (filter === "done") return items.filter((item) => item.doneOn === today)
   if (filter === "remaining") return items.filter((item) => item.doneOn !== today)
@@ -91,10 +113,10 @@ export function visibleTodos(items: Todo[], filter: TodoFilter, today: string): 
     filter === "done"
       ? kept.filter((item) => item.doneOn !== null)
       : filter === "later"
-        ? open.filter((item) => item.start > today)
+        ? open.filter((item) => item.start !== null && item.start > today)
         : filter === "overdue"
           ? open.filter((item) => item.due < today)
-          : open.filter((item) => item.start <= today && item.due >= today)
+          : open.filter((item) => (item.start === null || item.start <= today) && item.due >= today)
   return [...list].sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title))
 }
 

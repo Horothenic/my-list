@@ -1,10 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
 import { Editor, type Draft } from "./Editor"
 import { Logo } from "./Logo"
 import {
   addDays,
   dailyFilterLabel,
-  dueIsSoon,
+  dueMarker,
   formatMonthDay,
   formatToolbarDate,
   isoDate,
@@ -40,6 +40,10 @@ export function App() {
   const [dailies, setDailies] = useState<Daily[]>(sampleDailies)
   const [todos, setTodos] = useState<Todo[]>(() => sampleTodos.filter((item) => todoStillKept(item, today)))
   const [editor, setEditor] = useState<Draft | null>(null)
+  const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
+  const [dailiesWidth, setDailiesWidth] = useState(500)
+  const [dragging, setDragging] = useState(false)
+  const columnsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!openMenu) return
@@ -86,7 +90,7 @@ export function App() {
 
   function openNewTodo() {
     setOpenMenu(null)
-    setEditor({ mode: "todo", id: null, title: "", description: "", start: today, due: addDays(today, 7), steps: [] })
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: addDays(today, 7), steps: [] })
   }
 
   function openDaily(item: Daily) {
@@ -144,7 +148,7 @@ export function App() {
         doneOn: previous?.doneOn ?? null,
       }
       setTodos((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
-      setTodoFilter(next.doneOn ? "done" : next.start > today ? "later" : next.due < today ? "overdue" : "now")
+      setTodoFilter(next.doneOn ? "done" : next.start !== null && next.start > today ? "later" : next.due < today ? "overdue" : "now")
       setPane("todos")
     }
     setEditor(null)
@@ -156,6 +160,35 @@ export function App() {
 
   function toggleTodoStep(itemId: string, stepId: string) {
     setTodos((items) => items.map((item) => (item.id === itemId ? { ...item, steps: flipStep(item.steps, stepId) } : item)))
+  }
+
+  function toggleSteps(id: string) {
+    setOpenSteps((current) => ({ ...current, [id]: !current[id] }))
+  }
+
+  function startResize(event: ReactPointerEvent<HTMLDivElement>) {
+    const columns = columnsRef.current
+    if (!columns) return
+    event.preventDefault()
+    const originX = event.clientX
+    const originWidth = columns.querySelector(".pane-dailies")?.getBoundingClientRect().width ?? dailiesWidth
+    setDragging(true)
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+    const move = (ev: PointerEvent) => {
+      const total = columns.getBoundingClientRect().width
+      const next = Math.round(Math.min(Math.max(originWidth + ev.clientX - originX, 260), total - 260))
+      setDailiesWidth(next)
+    }
+    const stop = () => {
+      setDragging(false)
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      document.removeEventListener("pointermove", move)
+      document.removeEventListener("pointerup", stop)
+    }
+    document.addEventListener("pointermove", move)
+    document.addEventListener("pointerup", stop)
   }
 
   function deleteDraft() {
@@ -274,7 +307,7 @@ export function App() {
         </button>
       </div>
 
-      <div className="columns">
+      <div className="columns" ref={columnsRef} style={{ "--dailies-width": `${dailiesWidth}px` } as CSSProperties}>
         <section className="pane pane-dailies">
           <div className="pane-head">
             <h1>Dailies</h1>
@@ -318,12 +351,27 @@ export function App() {
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="tag">{scheduleLabel(item.schedule)}</span>
                   </button>
-                  <StepList steps={item.steps} onToggle={(stepId) => toggleDailyStep(item.id, stepId)} />
+                  <StepsBlock
+                    steps={item.steps}
+                    open={openSteps[item.id] === true}
+                    onToggleOpen={() => toggleSteps(item.id)}
+                    onToggleStep={(stepId) => toggleDailyStep(item.id, stepId)}
+                  />
                 </div>
               </li>
             ))}
           </ul>
         </section>
+
+        <div
+          className={dragging ? "splitter dragging" : "splitter"}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the lists"
+          aria-valuenow={dailiesWidth}
+          tabIndex={0}
+          onPointerDown={startResize}
+        />
 
         <section className="pane pane-todos">
           <div className="pane-head">
@@ -352,8 +400,11 @@ export function App() {
             </button>
           </div>
           <ul className="rows">
-            {shownTodos.map((item) => (
+            {shownTodos.map((item) => {
+              const marker = dueMarker(item.due, today, item.doneOn !== null)
+              return (
               <li key={item.id}>
+                <span className="marker" style={{ background: marker.color }} title={marker.label} />
                 <button
                   type="button"
                   className={item.doneOn ? "check on" : "check"}
@@ -368,16 +419,20 @@ export function App() {
                     <span className="title">{item.title}</span>
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
-                      <span className="from">From {formatMonthDay(item.start)}</span>
-                      <span className={dueIsSoon(item.due, today) && !item.doneOn ? "due soon" : "due"}>
-                        Due {formatMonthDay(item.due)}
-                      </span>
+                      {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
+                      <span className="due">Due {formatMonthDay(item.due)}</span>
                     </span>
                   </button>
-                  <StepList steps={item.steps} onToggle={(stepId) => toggleTodoStep(item.id, stepId)} />
+                  <StepsBlock
+                    steps={item.steps}
+                    open={openSteps[item.id] === true}
+                    onToggleOpen={() => toggleSteps(item.id)}
+                    onToggleStep={(stepId) => toggleTodoStep(item.id, stepId)}
+                  />
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </section>
       </div>
@@ -398,26 +453,41 @@ function flipStep(steps: Step[], stepId: string): Step[] {
   return steps.map((step) => (step.id === stepId ? { ...step, done: !step.done } : step))
 }
 
-function StepList({ steps, onToggle }: { steps: Step[]; onToggle: (stepId: string) => void }) {
+function StepsBlock({
+  steps,
+  open,
+  onToggleOpen,
+  onToggleStep,
+}: {
+  steps: Step[]
+  open: boolean
+  onToggleOpen: () => void
+  onToggleStep: (stepId: string) => void
+}) {
   if (steps.length === 0) return null
+  const done = steps.filter((step) => step.done).length
+  const label = done === 0 ? `${steps.length} ${steps.length === 1 ? "step" : "steps"}` : `${done}/${steps.length} steps`
   return (
-    <ul className="steps">
-      {steps.map((step) => (
-        <li key={step.id}>
-          <button
-            type="button"
-            className="step"
-            aria-pressed={step.done}
-            onClick={() => onToggle(step.id)}
-          >
-            <span className={step.done ? "check on" : "check"} aria-hidden="true">
-              {step.done && <CheckMark />}
-            </span>
-            <span className={step.done ? "step-title done" : "step-title"}>{step.title}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <>
+      <button type="button" className="steps-toggle" aria-expanded={open} onClick={onToggleOpen}>
+        <i className={open ? "caret" : "caret shut"} />
+        {label}
+      </button>
+      {open && (
+        <ul className="steps">
+          {steps.map((step) => (
+            <li key={step.id}>
+              <button type="button" className="step" aria-pressed={step.done} onClick={() => onToggleStep(step.id)}>
+                <span className={step.done ? "check on" : "check"} aria-hidden="true">
+                  {step.done && <CheckMark />}
+                </span>
+                <span className={step.done ? "step-title done" : "step-title"}>{step.title}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
