@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
-import { parseListDocument, type ListDocument } from "./document"
+import { parseListDocument, serializeList, type ListDocument } from "./document"
+import {
+  clearDriveToken,
+  currentDriveToken,
+  driveConfigured,
+  driveSignInCancelled,
+  driveTokenForSave,
+  loadGoogleIdentity,
+  openDriveList,
+  requestDriveToken,
+  uploadDriveFile,
+  type DriveSync,
+} from "./drive"
 import { Editor, type Draft } from "./Editor"
 import { Logo } from "./Logo"
 import {
@@ -7,10 +19,15 @@ import {
   downloadList,
   filePickerAvailable,
   loadLocal,
+  loadLocalCopy,
   openListFile,
   persistLocal,
   pickerWasCancelled,
+  saveDriveLink,
+  saveDriveSynced,
   saveListFile,
+  saveSource,
+  saveVisible,
 } from "./localStore"
 import {
   dailyFilterLabel,
@@ -53,8 +70,26 @@ export function App() {
   const [fileName, setFileName] = useState<string | null>(null)
   const [needsPermission, setNeedsPermission] = useState(false)
   const [storageNote, setStorageNote] = useState<string | null>(null)
+  const [driveFileName, setDriveFileName] = useState<string | null>(null)
+  const [driveSignedIn, setDriveSignedIn] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
   const [editor, setEditor] = useState<Draft | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const sourceRef = useRef<SourceId>("local")
+  const driveFileRef = useRef<{ id: string; name: string } | null>(null)
+  const driveBaseRef = useRef<string | null>(null)
+  const conflictRef = useRef(false)
+  const pendingDriveDoc = useRef<ListDocument | null>(null)
+  const lastSent = useRef<string | null>(null)
+  const saveGen = useRef(0)
+  const saveQueue = useRef(Promise.resolve())
+  const connectingRef = useRef(false)
+  const connectGen = useRef(0)
+  const dailiesRef = useRef(dailies)
+  const todosRef = useRef(todos)
+  dailiesRef.current = dailies
+  todosRef.current = todos
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
   const [dailiesWidth, setDailiesWidth] = useState(500)
   const [dragging, setDragging] = useState(false)
@@ -78,6 +113,40 @@ export function App() {
     }
   }, [openMenu])
 
+  function listDocument(): ListDocument {
+    return {
+      version: 1,
+      dailies: dailiesRef.current,
+      todos: todosRef.current.filter((item) => todoStillKept(item, today)),
+    }
+  }
+
+  function applyDriveSync(sync: DriveSync, browserDoc: ListDocument) {
+    saveGen.current += 1
+    driveFileRef.current = sync.link
+    setDriveFileName(sync.link.name)
+    conflictRef.current = sync.kind === "conflict"
+    if (sync.kind === "opened") {
+      driveBaseRef.current = sync.base
+      lastSent.current = sync.base
+      showDocument(sync.document)
+      setDriveBanner(null)
+      void saveDriveSynced(sync.document, sync.link, sync.base)
+      return
+    }
+    if (sync.kind === "in-sync") {
+      driveBaseRef.current = sync.base
+      lastSent.current = sync.base
+      setDriveBanner(null)
+      void saveDriveSynced(browserDoc, sync.link, sync.base)
+      return
+    }
+    pendingDriveDoc.current = sync.document
+    void saveVisible(browserDoc)
+    void saveDriveLink(sync.link)
+    setDriveBanner({ kind: "conflict", message: "This browser and Google Drive both have changes." })
+  }
+
   useEffect(() => {
     let cancel = false
     const fallback: ListDocument = {
@@ -85,16 +154,49 @@ export function App() {
       dailies: sampleDailies,
       todos: sampleTodos.filter((item) => todoStillKept(item, today)),
     }
+    if (driveConfigured()) void loadGoogleIdentity().catch(() => undefined)
     loadLocal(fallback)
-      .then((snapshot) => {
+      .then(async (snapshot) => {
         if (cancel) return
+        lastSent.current = serializeList(snapshot.document)
+        sourceRef.current = snapshot.source
+        driveFileRef.current = snapshot.driveFile
+        driveBaseRef.current = snapshot.driveBase
         showDocument(snapshot.document)
         setFileName(snapshot.fileName)
         setNeedsPermission(snapshot.needsPermission)
+        setSource(snapshot.source)
+        setDriveFileName(snapshot.driveFile?.name ?? null)
         setLoaded(true)
+        if (snapshot.source !== "drive") return
+        if (!driveConfigured()) {
+          setDriveBanner({ kind: "error", message: "Add a Google client ID to save to Google Drive." })
+          return
+        }
+        const gen = ++connectGen.current
+        connectingRef.current = true
+        try {
+          const token = await requestDriveToken("")
+          if (cancel || connectGen.current !== gen) return
+          setDriveSignedIn(true)
+          const doc = listDocument()
+          const sync = await openDriveList(token, doc, snapshot.driveFile, snapshot.driveBase)
+          if (cancel || connectGen.current !== gen || sourceRef.current !== "drive") return
+          applyDriveSync(sync, doc)
+        } catch (error) {
+          if (cancel || connectGen.current !== gen) return
+          if (driveSignInCancelled(error) || (error instanceof Error && error.message === "auth")) {
+            setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
+            return
+          }
+          setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not open Google Drive.") })
+        } finally {
+          if (connectGen.current === gen) connectingRef.current = false
+        }
       })
       .catch(() => {
         if (cancel) return
+        lastSent.current = serializeList(fallback)
         showDocument(fallback)
         setStorageNote("Could not open the saved list.")
         setLoaded(true)
@@ -106,19 +208,65 @@ export function App() {
 
   useEffect(() => {
     if (!loaded) return
+    const doc: ListDocument = {
+      version: 1,
+      dailies,
+      todos: todos.filter((item) => todoStillKept(item, today)),
+    }
+    const text = serializeList(doc)
+    if (text === lastSent.current) return
     const timer = window.setTimeout(() => {
-      const doc: ListDocument = {
-        version: 1,
-        dailies,
-        todos: todos.filter((item) => todoStillKept(item, today)),
-      }
-      persistLocal(doc)
-        .then((result) => {
-          setFileName(result.fileName)
-          setNeedsPermission(result.needsPermission)
-          setStorageNote(null)
+      const gen = ++saveGen.current
+      saveQueue.current = saveQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          while (connectingRef.current) await new Promise((resolve) => window.setTimeout(resolve, 40))
+          if (saveGen.current !== gen) return
+          const latest = listDocument()
+          const latestText = serializeList(latest)
+          try {
+            if (sourceRef.current === "drive") {
+              if (conflictRef.current) {
+                await saveVisible(latest)
+                return
+              }
+              const token = await driveTokenForSave()
+              if (saveGen.current !== gen || sourceRef.current !== "drive") return
+              const link = driveFileRef.current
+              if (!token || !link) {
+                await saveVisible(latest)
+                setDriveSignedIn(false)
+                setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
+                return
+              }
+              await uploadDriveFile(token, link.id, latest)
+              if (saveGen.current !== gen || sourceRef.current !== "drive") return
+              driveBaseRef.current = latestText
+              await saveDriveSynced(latest, link, latestText)
+              setDriveBanner(null)
+              setDriveSignedIn(true)
+            } else {
+              const result = await persistLocal(latest)
+              if (saveGen.current !== gen || sourceRef.current !== "local") return
+              setFileName(result.fileName)
+              setNeedsPermission(result.needsPermission)
+              setStorageNote(null)
+            }
+            if (saveGen.current === gen) lastSent.current = latestText
+          } catch (error) {
+            if (sourceRef.current === "drive") {
+              await saveVisible(latest).catch(() => undefined)
+              if (error instanceof Error && error.message === "auth") {
+                setDriveSignedIn(false)
+                setDriveBanner({ kind: "signin", message: "Sign in to Google Drive to save this list." })
+              } else {
+                setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not save to Google Drive.") })
+              }
+              return
+            }
+            setStorageNote("Could not save the list.")
+          }
         })
-        .catch(() => setStorageNote("Could not save the list."))
     }, 200)
     return () => window.clearTimeout(timer)
   }, [loaded, dailies, todos])
@@ -126,6 +274,115 @@ export function App() {
   function showDocument(doc: ListDocument) {
     setDailies(doc.dailies)
     setTodos(doc.todos.filter((item) => todoStillKept(item, today)))
+  }
+
+  function driveDetail(): string {
+    if (!driveConfigured()) return "Add a Google client ID to sign in. The list stays in the local file."
+    if (connecting) return "Signing in…"
+    if (source === "drive" && driveFileName) return driveFileName
+    return "One my-list.json file in your Drive."
+  }
+
+  async function chooseLocal() {
+    connectGen.current += 1
+    connectingRef.current = false
+    setConnecting(false)
+    saveGen.current += 1
+    sourceRef.current = "local"
+    conflictRef.current = false
+    pendingDriveDoc.current = null
+    setSource("local")
+    setDriveBanner(null)
+    setOpenMenu(null)
+    try {
+      await saveSource("local")
+      const copy = await loadLocalCopy()
+      if (!copy) return
+      lastSent.current = serializeList(copy.document)
+      showDocument(copy.document)
+      setFileName(copy.fileName)
+      setNeedsPermission(copy.needsPermission)
+    } catch {
+      setStorageNote("Could not open the saved list.")
+    }
+  }
+
+  async function connectDrive() {
+    if (!driveConfigured()) {
+      setStorageNote("Add a Google client ID to sign in.")
+      return
+    }
+    const gen = ++connectGen.current
+    connectingRef.current = true
+    setConnecting(true)
+    setStorageNote(null)
+    try {
+      const token = currentDriveToken() ?? (await requestDriveToken("select_account"))
+      if (connectGen.current !== gen) return
+      setDriveSignedIn(true)
+      const doc = listDocument()
+      const sync = await openDriveList(token, doc, driveFileRef.current, driveBaseRef.current)
+      if (connectGen.current !== gen) return
+      sourceRef.current = "drive"
+      setSource("drive")
+      await saveSource("drive")
+      if (connectGen.current !== gen) return
+      applyDriveSync(sync, doc)
+      setOpenMenu(null)
+    } catch (error) {
+      if (connectGen.current === gen && !driveSignInCancelled(error)) setStorageNote(driveErrorMessage(error, "Could not open Google Drive."))
+    } finally {
+      if (connectGen.current === gen) {
+        connectingRef.current = false
+        setConnecting(false)
+      }
+    }
+  }
+
+  async function signOutOfDrive() {
+    clearDriveToken()
+    setDriveSignedIn(false)
+    await chooseLocal()
+  }
+
+  async function keepBrowserList() {
+    const link = driveFileRef.current
+    if (!link) return
+    try {
+      const token = currentDriveToken() ?? (await requestDriveToken("select_account"))
+      setDriveSignedIn(true)
+      const doc = listDocument()
+      await uploadDriveFile(token, link.id, doc)
+      const base = serializeList(doc)
+      saveGen.current += 1
+      driveBaseRef.current = base
+      lastSent.current = base
+      conflictRef.current = false
+      pendingDriveDoc.current = null
+      setDriveBanner(null)
+      await saveDriveSynced(doc, link, base)
+    } catch (error) {
+      if (!driveSignInCancelled(error)) setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not save to Google Drive.") })
+    }
+  }
+
+  async function useDriveFile() {
+    const doc = pendingDriveDoc.current
+    const link = driveFileRef.current
+    if (!doc || !link) return
+    const base = serializeList(doc)
+    saveGen.current += 1
+    driveBaseRef.current = base
+    lastSent.current = base
+    conflictRef.current = false
+    pendingDriveDoc.current = null
+    showDocument(doc)
+    setDriveBanner(null)
+    try {
+      await saveDriveSynced(doc, link, base)
+    } catch {
+      setDriveBanner({ kind: "error", message: "Could not save to Google Drive." })
+    }
   }
 
   function toggleMenu(menu: Exclude<OpenMenu, null>) {
@@ -359,10 +616,7 @@ export function App() {
                     : "Saved in this browser. Choose a file to keep your own copy."
                 }
                 selected={source === "local"}
-                onSelect={() => {
-                  setSource("local")
-                  setOpenMenu(null)
-                }}
+                onSelect={() => void chooseLocal()}
               />
               {source === "local" && (
                 <div className="source-actions">
@@ -379,21 +633,56 @@ export function App() {
                   )}
                 </div>
               )}
-              {storageNote && <div className="storage-note">{storageNote}</div>}
               <SourceOption
                 title="Google Drive"
-                detail="Optional. Sign-in comes later. The list stays in the local file."
+                detail={driveDetail()}
                 selected={source === "drive"}
-                onSelect={() => {
-                  setSource("drive")
-                  setOpenMenu(null)
-                }}
+                onSelect={() => void connectDrive()}
               />
+              {(source === "drive" || connecting) && driveConfigured() && (
+                <div className="source-actions">
+                  {driveSignedIn ? (
+                    <button type="button" className="menu-action" onClick={() => void signOutOfDrive()}>
+                      Sign out
+                    </button>
+                  ) : (
+                    <button type="button" className="menu-action" disabled={connecting} onClick={() => void connectDrive()}>
+                      {connecting ? "Signing in…" : "Sign in with Google"}
+                    </button>
+                  )}
+                </div>
+              )}
+              {storageNote && <div className="storage-note">{storageNote}</div>}
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
         </div>
       </header>
+      {driveBanner && source === "drive" && (
+        <div className="status-bar" role="status">
+          <span>{driveBanner.message}</span>
+          {driveBanner.kind === "conflict" && (
+            <>
+              <button type="button" onClick={() => void keepBrowserList()}>
+                Keep this list
+              </button>
+              <button type="button" onClick={() => void useDriveFile()}>
+                Use the Drive file
+              </button>
+            </>
+          )}
+          {driveBanner.kind === "signin" && (
+            <button type="button" onClick={() => void connectDrive()}>
+              Sign in
+            </button>
+          )}
+          {driveBanner.kind === "error" && driveConfigured() && (
+            <button type="button" onClick={() => void connectDrive()}>
+              Try again
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="segment" role="tablist">
         <button
@@ -599,6 +888,15 @@ export function App() {
       )}
     </div>
   )
+}
+
+function driveErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error)) return fallback
+  if (error.message === "invalid") return "That Drive file is not a My List file."
+  if (error.message === "forbidden") return "Google Drive refused the request. Enable the Drive API for this client."
+  if (error.message === "missing-client") return "Add a Google client ID to sign in."
+  if (error.message === "auth") return "Sign in to Google Drive to save this list."
+  return fallback
 }
 
 function flipStep(steps: Step[], stepId: string): Step[] {

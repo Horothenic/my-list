@@ -92,7 +92,7 @@ button { font: inherit; color: inherit; }
   z-index: 6;
 }
 
-.menu.wide { min-width: 260px; left: auto; right: 0; }
+.menu.wide { width: min(320px, calc(100vw - 24px)); min-width: 260px; left: auto; right: 0; }
 
 .source-actions { display: flex; flex-direction: column; gap: 2px; margin: 0 4px 6px; }
 
@@ -110,8 +110,34 @@ button { font: inherit; color: inherit; }
 }
 
 .menu-action:hover { background: #2D333B; }
+.menu-action:disabled { color: #6E7781; cursor: default; }
+.menu-action:disabled:hover { background: transparent; }
 
 .storage-note { margin: 2px 8px 8px; color: #F47067; font-size: 12px; }
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #2D333B;
+  border-bottom: 1px solid #373E47;
+  color: #E6EDF3;
+  font-size: 13px;
+}
+
+.status-bar button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: #24292F;
+  color: #E6EDF3;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 
 .menu-label, .menu-note {
   margin: 4px 8px 6px;
