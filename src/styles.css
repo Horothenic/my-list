@@ -272,10 +272,10 @@ button.item {
 .rows > li:hover { background: #2A313A; }
 
 .marker {
-  width: 3px;
+  width: 8px;
   align-self: stretch;
   margin: 2px 0;
-  border-radius: 2px;
+  border-radius: 4px;
   flex: none;
 }
 
