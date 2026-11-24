@@ -73,7 +73,10 @@ button { font: inherit; color: inherit; }
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
   border-top: 5px solid #9DA7B3;
+  display: inline-block;
 }
+
+.caret.shut { transform: rotate(-90deg); }
 
 .filter { position: relative; }
 
@@ -155,8 +158,33 @@ button { font: inherit; color: inherit; }
 
 .columns { display: flex; flex: 1; min-height: 0; }
 .pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.pane-dailies { width: 500px; border-right: 1px solid #373E47; }
+.pane-dailies { width: var(--dailies-width, 500px); flex: none; }
 .pane-todos { flex: 1; }
+
+.splitter {
+  width: 9px;
+  flex: none;
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: #373E47;
+}
+
+.splitter:hover::after,
+.splitter.dragging::after {
+  left: 3px;
+  width: 3px;
+  background: #4493F8;
+}
 
 .pane-head {
   flex: none;
@@ -170,7 +198,7 @@ button { font: inherit; color: inherit; }
 h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
 
 .rows { list-style: none; margin: 0; padding: 0; overflow: auto; }
-.rows li {
+.rows > li {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -195,14 +223,74 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
 .check.on { background: #57AB5A; border-color: #57AB5A; }
 .check svg { width: 12px; height: 12px; display: block; }
 
-.item {
+.item-body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
 }
+
+button.item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.rows > li:hover { background: #2A313A; }
+
+.marker {
+  width: 3px;
+  align-self: stretch;
+  margin: 2px 0;
+  border-radius: 2px;
+  flex: none;
+}
+
+.steps-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9DA7B3;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-title { font-size: 13px; color: #C9D1D9; }
+.step-title.done { color: #6E7781; text-decoration: line-through; }
 
 .pane-dailies .item {
   display: grid;
@@ -256,9 +344,150 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
     padding: 12px 12px 4px 16px;
   }
   .when { color: #9DA7B3; font-size: 13px; }
-  .pane-dailies { width: auto; flex: 1; border-right: 0; }
+  .splitter { display: none; }
+  .pane-dailies { width: auto; flex: 1; }
   .app[data-pane="dailies"] .pane-todos,
   .app[data-pane="todos"] .pane-dailies { display: none; }
-  .rows li { padding: 12px 16px; }
+  .rows > li { padding: 12px 16px; }
   .pane-dailies .item { display: grid; }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(14, 17, 20, 0.62);
+}
+
+.editor {
+  width: min(420px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 18px;
+  background: #24292F;
+  border: 1px solid #373E47;
+  border-radius: 10px;
+  color-scheme: dark;
+}
+
+.editor h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+
+.editor label,
+.editor legend {
+  display: block;
+  margin-bottom: 12px;
+  color: #9DA7B3;
+  font-size: 12px;
+}
+
+.editor input[type="text"],
+.editor input:not([type]),
+.editor textarea,
+.editor input[type="date"],
+.editor select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: #1E2227;
+  color: #E6EDF3;
+  font: inherit;
+}
+
+.editor textarea { resize: vertical; }
+
+.editor select { height: 36px; padding-top: 0; padding-bottom: 0; }
+
+.schedule { margin-bottom: 12px; }
+.schedule label { margin-bottom: 8px; }
+
+.days { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
+
+.steps-edit { margin: 2px 0 14px; }
+.steps-label { display: block; margin-bottom: 8px; color: #9DA7B3; font-size: 12px; }
+
+.step-edit { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.editor .step-edit input { flex: 1; width: auto; height: 36px; margin-top: 0; }
+
+.step-remove,
+.add-step {
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: transparent;
+  color: #9DA7B3;
+  font: inherit;
+  cursor: pointer;
+}
+
+.step-remove {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.step-remove svg { width: 14px; height: 14px; display: block; }
+
+.field-name { display: flex; align-items: baseline; gap: 6px; }
+.optional { color: #6E7781; font-weight: 400; }
+.date-line { display: flex; align-items: center; gap: 6px; }
+.editor .date-line input { flex: 1; width: auto; min-width: 0; margin-top: 6px; }
+
+.add-step { height: 32px; padding: 0 10px; border-style: dashed; }
+
+.day {
+  width: 36px;
+  height: 32px;
+  border: 1px solid #373E47;
+  border-radius: 6px;
+  background: #1E2227;
+  color: #9DA7B3;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.day.on { background: #1B3354; border-color: #4493F8; color: #E6EDF3; }
+
+.date-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.editor-error { margin: 0 0 12px; color: #F47067; font-size: 13px; }
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.editor-actions-right { display: flex; gap: 8px; }
+
+.text-danger {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #F47067;
+  font: inherit;
+  cursor: pointer;
+}
+
+.save-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #4493F8;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }

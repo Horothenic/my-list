@@ -8,6 +8,7 @@ export const sampleDailies: Daily[] = [
     title: "Stretch",
     description: "Ten minutes on the floor",
     schedule: { kind: "every-day" },
+    steps: [],
     doneOn: null,
   },
   {
@@ -15,6 +16,10 @@ export const sampleDailies: Daily[] = [
     title: "Language practice",
     description: "One lesson, out loud",
     schedule: { kind: "weekdays" },
+    steps: [
+      { id: "language-listen", title: "Listen to the lesson", done: false },
+      { id: "language-say", title: "Say it out loud", done: false },
+    ],
     doneOn: null,
   },
   {
@@ -22,6 +27,7 @@ export const sampleDailies: Daily[] = [
     title: "Walk",
     description: "Around the block",
     schedule: { kind: "days", days: [2, 4, 6] },
+    steps: [],
     doneOn: null,
   },
   {
@@ -29,6 +35,7 @@ export const sampleDailies: Daily[] = [
     title: "Make the bed",
     description: "Before leaving the room",
     schedule: { kind: "every-day" },
+    steps: [],
     doneOn: today,
   },
   {
@@ -36,6 +43,7 @@ export const sampleDailies: Daily[] = [
     title: "Vitamins",
     description: "With breakfast",
     schedule: { kind: "every-day" },
+    steps: [],
     doneOn: today,
   },
 ]
@@ -47,6 +55,10 @@ export const sampleTodos: Todo[] = [
     description: "Scan the signed pages and email them",
     start: addDays(today, -2),
     due: addDays(today, 1),
+    steps: [
+      { id: "insurance-scan", title: "Scan the signed pages", done: true },
+      { id: "insurance-email", title: "Email the scan", done: false },
+    ],
     doneOn: null,
   },
   {
@@ -55,14 +67,16 @@ export const sampleTodos: Todo[] = [
     description: "Something she can open on Sunday",
     start: addDays(today, -4),
     due: addDays(today, 2),
+    steps: [],
     doneOn: null,
   },
   {
     id: "dentist",
     title: "Book the dentist",
     description: "A cleaning, morning if they have it",
-    start: today,
-    due: addDays(today, 4),
+    start: null,
+    due: today,
+    steps: [],
     doneOn: null,
   },
   {
@@ -71,6 +85,7 @@ export const sampleTodos: Todo[] = [
     description: "The 16 by 25 size, two of them",
     start: addDays(today, -14),
     due: addDays(today, 7),
+    steps: [],
     doneOn: null,
   },
   {
@@ -79,6 +94,7 @@ export const sampleTodos: Todo[] = [
     description: "Ask for the leak to be fixed",
     start: addDays(today, -6),
     due: addDays(today, 11),
+    steps: [],
     doneOn: null,
   },
   {
@@ -87,6 +103,7 @@ export const sampleTodos: Todo[] = [
     description: "The renewal window opens next month",
     start: addDays(today, 10),
     due: addDays(today, 20),
+    steps: [],
     doneOn: null,
   },
   {
@@ -94,7 +111,8 @@ export const sampleTodos: Todo[] = [
     title: "Return the library books",
     description: "Two novels, on the hall table",
     start: addDays(today, -20),
-    due: addDays(today, -3),
+    due: addDays(today, -8),
+    steps: [],
     doneOn: null,
   },
   {
@@ -103,6 +121,16 @@ export const sampleTodos: Todo[] = [
     description: "The roots are coming out the bottom",
     start: addDays(today, -8),
     due: addDays(today, -1),
+    steps: [],
     doneOn: addDays(today, -1),
+  },
+  {
+    id: "receipt",
+    title: "File the old receipt",
+    description: "Finished more than a week ago",
+    start: addDays(today, -20),
+    due: addDays(today, -12),
+    steps: [],
+    doneOn: addDays(today, -10),
   },
 ]
