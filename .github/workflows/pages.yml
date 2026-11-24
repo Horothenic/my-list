@@ -2,7 +2,7 @@ name: Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, phase-5-phone]
   workflow_dispatch:
 
 permissions:
