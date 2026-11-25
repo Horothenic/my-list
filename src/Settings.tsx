@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { tagLabel, type SourceId } from "./model"
+import { ColorDialog } from "./Pickers"
 import type { CustomColors, ThemeName } from "./theme"
 
 export function Settings({
@@ -58,6 +59,7 @@ export function Settings({
   onClose: () => void
 }) {
   const [tagName, setTagName] = useState("")
+  const [colorEdit, setColorEdit] = useState<{ key: keyof CustomColors; label: string } | null>(null)
 
   return (
     <div className="settings">
@@ -114,11 +116,11 @@ export function Settings({
         </div>
         {theme === "custom" && (
           <div className="settings-card" style={{ marginTop: 8 }}>
-            <ColorRow label="Background" value={colors.background} onChange={(background) => onColors({ ...colors, background })} />
-            <ColorRow label="Accent" value={colors.accent} onChange={(accent) => onColors({ ...colors, accent })} />
-            <ColorRow label="Not due yet" value={colors.waiting} onChange={(waiting) => onColors({ ...colors, waiting })} />
-            <ColorRow label="Due today" value={colors.today} onChange={(today) => onColors({ ...colors, today })} />
-            <ColorRow label="Overdue" value={colors.late} onChange={(late) => onColors({ ...colors, late })} />
+            <ColorRow label="Background" value={colors.background} onEdit={() => setColorEdit({ key: "background", label: "Background" })} />
+            <ColorRow label="Accent" value={colors.accent} onEdit={() => setColorEdit({ key: "accent", label: "Accent" })} />
+            <ColorRow label="Not due yet" value={colors.waiting} onEdit={() => setColorEdit({ key: "waiting", label: "Not due yet" })} />
+            <ColorRow label="Due today" value={colors.today} onEdit={() => setColorEdit({ key: "today", label: "Due today" })} />
+            <ColorRow label="Overdue" value={colors.late} onEdit={() => setColorEdit({ key: "late", label: "Overdue" })} />
           </div>
         )}
 
@@ -171,15 +173,26 @@ export function Settings({
           </button>
         </div>
       </div>
+      {colorEdit && (
+        <ColorDialog
+          label={colorEdit.label}
+          value={colors[colorEdit.key]}
+          onClose={() => setColorEdit(null)}
+          onSave={(hex) => {
+            onColors({ ...colors, [colorEdit.key]: hex })
+            setColorEdit(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function ColorRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
   return (
-    <label className="color-row settings-row">
+    <div className="color-row settings-row">
       <span>{label}</span>
-      <input type="color" value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
+      <button type="button" className="swatch-btn" style={{ background: value }} aria-label={label} onClick={onEdit} />
+    </div>
   )
 }
