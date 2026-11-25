@@ -1060,7 +1060,9 @@ export function App() {
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
                       {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
-                      <span className={marker.color === "#F47067" ? "due late" : "due"}>Due {formatMonthDay(item.due)}</span>
+                      <span className="due" style={item.doneOn === null && item.due < today ? { color: marker.color } : undefined}>
+                        Due {formatMonthDay(item.due)}
+                      </span>
                     </span>
                   </button>
                   <StepsBlock
