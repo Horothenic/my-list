@@ -10,7 +10,7 @@ function safariFavicon(): Plugin {
       handler(html) {
         return html.replace(
           /<link rel="shortcut icon"[^>]*>/,
-          '<link rel="shortcut icon" type="image/x-icon" href="favicon.ico?v=4">',
+          '<link rel="shortcut icon" type="image/x-icon" href="favicon.ico">',
         )
       },
     },
