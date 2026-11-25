@@ -22,6 +22,7 @@ export type Daily = {
   schedule: DailySchedule
   steps: Step[]
   doneOn: string | null
+  tags?: string[]
 }
 
 export type Todo = {
@@ -32,12 +33,33 @@ export type Todo = {
   due: string
   steps: Step[]
   doneOn: string | null
+  tags?: string[]
 }
 
 export type DailyFilter = "all" | "due"
 export type TodoFilter = "all" | "due" | "planned"
 export type Pane = "dailies" | "todos"
-export type OpenMenu = "source" | "daily" | "todo" | null
+export type OpenMenu = "filters" | null
+
+export type MarkerColors = {
+  waiting: string
+  today: string
+  late: string
+}
+
+export function tagLabel(name: string): string {
+  return name.trim().toLocaleUpperCase()
+}
+
+export function itemTags(item: { tags?: string[] }): string[] {
+  return (item.tags ?? []).map(tagLabel).filter((tag) => tag !== "")
+}
+
+export function matchesTags(item: { tags?: string[] }, selected: string[]): boolean {
+  if (selected.length === 0) return true
+  const wanted = new Set(selected.map(tagLabel))
+  return itemTags(item).some((tag) => wanted.has(tag))
+}
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -113,14 +135,31 @@ function mix(from: Rgb, to: Rgb, amount: number): string {
 }
 
 /** Gray until the due date arrives, green on the due day, then a week-long ramp to red. */
-export function dueMarker(due: string, today: string, done: boolean): { color: string; label: string } {
+export function dueMarker(due: string, today: string, done: boolean, colors?: MarkerColors): { color: string; label: string } {
+  if (colors) {
+    if (done) return { color: colors.waiting, label: "Done" }
+    if (due > today) return { color: colors.waiting, label: "Not due yet" }
+    const late = daysLate(due, today)
+    if (late <= 0) return { color: colors.today, label: "Due today" }
+    if (late >= 7) return { color: colors.late, label: `${late} days overdue` }
+    return { color: mix(rgb(colors.today), rgb(colors.late), late / 7), label: late === 1 ? "1 day overdue" : `${late} days overdue` }
+  }
   if (done) return { color: "#6E7781", label: "Done" }
   if (due > today) return { color: "#6E7781", label: "Not due yet" }
-  const late = Math.round((parseIso(today).getTime() - parseIso(due).getTime()) / 86_400_000)
+  const late = daysLate(due, today)
   if (late <= 0) return { color: "#57AB5A", label: "Due today" }
   if (late >= 7) return { color: "#F47067", label: `${late} days overdue` }
   const color = late <= 3 ? mix(GREEN, AMBER, late / 3) : mix(AMBER, RED, (late - 3) / 4)
   return { color, label: late === 1 ? "1 day overdue" : `${late} days overdue` }
+}
+
+function daysLate(due: string, today: string): number {
+  return Math.round((parseIso(today).getTime() - parseIso(due).getTime()) / 86_400_000)
+}
+
+function rgb(color: string): Rgb {
+  const hex = color.replace("#", "")
+  return [Number.parseInt(hex.slice(0, 2), 16), Number.parseInt(hex.slice(2, 4), 16), Number.parseInt(hex.slice(4, 6), 16)]
 }
 
 export function visibleDailies(items: Daily[], filter: DailyFilter, today: string): Daily[] {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { parseListDocument, serializeList, type ListDocument } from "./document"
 import {
   clearDriveToken,
@@ -15,10 +15,12 @@ import {
 } from "./drive"
 import { Editor, type Draft } from "./Editor"
 import { Logo } from "./Logo"
+import { Settings } from "./Settings"
 import {
   allowStoredFile,
   downloadList,
   filePickerAvailable,
+  forgetListFile,
   loadLocal,
   loadLocalCopy,
   openListFile,
@@ -38,6 +40,9 @@ import {
   formatMonthDay,
   formatToolbarDate,
   isoDate,
+  itemTags,
+  matchesTags,
+  tagLabel,
   scheduleLabel,
   scheduledOn,
   todoFilterLabel,
@@ -55,10 +60,14 @@ import {
   type TodoFilter,
 } from "./model"
 import { sampleDailies, sampleTodos } from "./sample"
+import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, type CustomColors, type ThemeName } from "./theme"
 
 const today = isoDate(new Date())
 const toolbarDate = formatToolbarDate(new Date())
 const PANE_KEY = "my-list-pane"
+const DAILY_FILTER_KEY = "my-list-daily-filter"
+const TODO_FILTER_KEY = "my-list-todo-filter"
+const TAG_FILTER_KEY = "my-list-tag-filter"
 const REFRESH_EVERY_MS = 15_000
 
 function storedPane(): Pane {
@@ -67,6 +76,47 @@ function storedPane(): Pane {
   } catch {
     return "dailies"
   }
+}
+
+function storedDailyFilter(): DailyFilter {
+  try {
+    return localStorage.getItem(DAILY_FILTER_KEY) === "all" ? "all" : "due"
+  } catch {
+    return "due"
+  }
+}
+
+function storedTodoFilter(): TodoFilter {
+  try {
+    const value = localStorage.getItem(TODO_FILTER_KEY)
+    return value === "all" || value === "planned" ? value : "due"
+  } catch {
+    return "due"
+  }
+}
+
+function storedTagFilter(): string[] {
+  try {
+    const raw = localStorage.getItem(TAG_FILTER_KEY)
+    const data: unknown = raw ? JSON.parse(raw) : []
+    return Array.isArray(data) ? data.filter((item): item is string => typeof item === "string").map(tagLabel).filter((tag) => tag !== "") : []
+  } catch {
+    return []
+  }
+}
+
+function catalogTags(doc: ListDocument): string[] {
+  const fromItems = [...doc.dailies.flatMap((item) => itemTags(item)), ...doc.todos.flatMap((item) => itemTags(item))]
+  const names = [...(Array.isArray(doc.tags) ? doc.tags : []), ...fromItems]
+  const seen = new Set<string>()
+  const tags: string[] = []
+  for (const tag of names) {
+    const label = tagLabel(tag)
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    tags.push(label)
+  }
+  return tags
 }
 
 function scheduleFromDraft(draft: Extract<Draft, { mode: "daily" }>): DailySchedule {
@@ -83,10 +133,15 @@ export function App() {
   const [source, setSource] = useState<SourceId>("local")
   const [pane, setPane] = useState<Pane>(storedPane)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
-  const [dailyFilter, setDailyFilter] = useState<DailyFilter>("due")
-  const [todoFilter, setTodoFilter] = useState<TodoFilter>("due")
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [theme, setTheme] = useState<ThemeName>(storedTheme)
+  const [colors, setColors] = useState<CustomColors>(storedColors)
+  const [dailyFilter, setDailyFilter] = useState<DailyFilter>(storedDailyFilter)
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>(storedTodoFilter)
+  const [selectedTags, setSelectedTags] = useState<string[]>(storedTagFilter)
   const [dailies, setDailies] = useState<Daily[]>([])
   const [todos, setTodos] = useState<Todo[]>([])
+  const [tags, setTags] = useState<string[]>([])
   const [loaded, setLoaded] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [needsPermission, setNeedsPermission] = useState(false)
@@ -121,8 +176,10 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false)
   const dailiesRef = useRef(dailies)
   const todosRef = useRef(todos)
+  const tagsRef = useRef(tags)
   dailiesRef.current = dailies
   todosRef.current = todos
+  tagsRef.current = tags
   editorRef.current = editor
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
   const [dailiesWidth, setDailiesWidth] = useState(500)
@@ -152,6 +209,7 @@ export function App() {
       version: 1,
       dailies: dailiesRef.current,
       todos: todosRef.current.filter((item) => todoStillKept(item, today)),
+      tags: tagsRef.current,
     }
   }
 
@@ -249,6 +307,7 @@ export function App() {
       version: 1,
       dailies: sampleDailies,
       todos: sampleTodos.filter((item) => todoStillKept(item, today)),
+      tags: [],
     }
     if (driveConfigured()) void loadGoogleIdentity().catch(() => undefined)
     loadLocal(fallback)
@@ -260,6 +319,7 @@ export function App() {
         driveBaseRef.current = snapshot.driveBase
         dailiesRef.current = snapshot.document.dailies
         todosRef.current = snapshot.document.todos.filter((item) => todoStillKept(item, today))
+        tagsRef.current = catalogTags(snapshot.document)
         showDocument(snapshot.document)
         setFileName(snapshot.fileName)
         setNeedsPermission(snapshot.needsPermission)
@@ -319,6 +379,7 @@ export function App() {
       version: 1,
       dailies,
       todos: todos.filter((item) => todoStillKept(item, today)),
+      tags,
     }
     const text = serializeList(doc)
     if (text === lastSent.current) return
@@ -377,7 +438,40 @@ export function App() {
         })
     }, 200)
     return () => window.clearTimeout(timer)
-  }, [loaded, dailies, todos])
+  }, [loaded, dailies, todos, tags])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    const root = document.documentElement
+    if (theme === "custom") {
+      const paint = accentPaint(colors.accent, colors.background)
+      root.style.setProperty("--custom-bg", colors.background)
+      root.style.setProperty("--accent", paint.accent)
+      root.style.setProperty("--accent-bg", paint.bg)
+      root.style.setProperty("--accent-ink", paint.ink)
+    } else {
+      root.style.removeProperty("--custom-bg")
+      root.style.removeProperty("--accent")
+      root.style.removeProperty("--accent-bg")
+      root.style.removeProperty("--accent-ink")
+    }
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f6f8fa" : "#24292F")
+    rememberTheme(theme)
+  }, [theme, colors.background, colors.accent])
+
+  useEffect(() => {
+    rememberColors(colors)
+  }, [colors])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DAILY_FILTER_KEY, dailyFilter)
+      localStorage.setItem(TODO_FILTER_KEY, todoFilter)
+      localStorage.setItem(TAG_FILTER_KEY, JSON.stringify(selectedTags))
+    } catch {
+      /* Storage can be blocked in a private window. */
+    }
+  }, [dailyFilter, todoFilter, selectedTags])
 
   useEffect(() => {
     try {
@@ -402,8 +496,11 @@ export function App() {
   }, [loaded])
 
   function showDocument(doc: ListDocument) {
+    const nextTags = catalogTags(doc)
+    tagsRef.current = nextTags
     setDailies(doc.dailies)
     setTodos(doc.todos.filter((item) => todoStillKept(item, today)))
+    setTags(nextTags)
   }
 
   function driveDetail(): string {
@@ -548,12 +645,13 @@ export function App() {
       monthWeek: 1,
       monthWeekday: 4,
       steps: [],
+      tags: [],
     })
   }
 
   function openNewTodo() {
     setOpenMenu(null)
-    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: today, steps: [] })
+    setEditor({ mode: "todo", id: null, title: "", description: "", start: null, due: today, steps: [], tags: [] })
   }
 
   function openDaily(item: Daily) {
@@ -569,6 +667,7 @@ export function App() {
       monthWeek: item.schedule.kind === "month-weekday" ? item.schedule.week : 1,
       monthWeekday: item.schedule.kind === "month-weekday" ? item.schedule.day : 4,
       steps: item.steps.map((step) => ({ ...step })),
+      tags: itemTags(item),
     })
   }
 
@@ -582,7 +681,58 @@ export function App() {
       start: item.start,
       due: item.due,
       steps: item.steps.map((step) => ({ ...step })),
+      tags: itemTags(item),
     })
+  }
+
+  function rememberTags(names: string[]) {
+    setTags((current) => {
+      const next = [...current]
+      for (const name of names.map(tagLabel)) {
+        if (name && !next.includes(name)) next.push(name)
+      }
+      tagsRef.current = next
+      return next
+    })
+  }
+
+  function addCatalogTag(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    rememberTags([trimmed])
+  }
+
+  function renameTag(from: string, to: string) {
+    const name = tagLabel(to)
+    const previous = tagLabel(from)
+    if (!name || name === previous) return
+    const swap = (list: string[]) => {
+      const next: string[] = []
+      for (const tag of list.map((item) => (tagLabel(item) === previous ? name : tagLabel(item)))) {
+        if (!next.some((item) => item.toLocaleLowerCase() === tag.toLocaleLowerCase())) next.push(tag)
+      }
+      return next
+    }
+    setTags((current) => {
+      const next = swap(current)
+      tagsRef.current = next
+      return next
+    })
+    setDailies((items) => items.map((item) => ({ ...item, tags: swap(itemTags(item)) })))
+    setTodos((items) => items.map((item) => ({ ...item, tags: swap(itemTags(item)) })))
+    setSelectedTags((current) => swap(current))
+  }
+
+  function deleteTag(name: string) {
+    const label = tagLabel(name)
+    setTags((current) => {
+      const next = current.filter((tag) => tagLabel(tag) !== label)
+      tagsRef.current = next
+      return next
+    })
+    setDailies((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== label) })))
+    setTodos((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== label) })))
+    setSelectedTags((current) => current.filter((tag) => tagLabel(tag) !== label))
   }
 
   function saveDraft(draft: Draft) {
@@ -595,8 +745,10 @@ export function App() {
         schedule,
         steps: draft.steps,
         doneOn: draft.id ? (dailies.find((item) => item.id === draft.id)?.doneOn ?? null) : null,
+        tags: draft.tags,
       }
       setDailies((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
+      rememberTags(draft.tags)
       if (!draft.id) setDailyFilter(scheduledOn(schedule, today) ? "due" : "all")
       setPane("dailies")
     } else {
@@ -609,8 +761,10 @@ export function App() {
         due: draft.due,
         steps: draft.steps,
         doneOn: previous?.doneOn ?? null,
+        tags: draft.tags,
       }
       setTodos((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
+      rememberTags(draft.tags)
       setTodoFilter(next.doneOn ? "all" : next.start !== null && next.start > today ? "planned" : "due")
       setPane("todos")
     }
@@ -675,7 +829,7 @@ export function App() {
 
   async function saveAsFile() {
     setStorageNote(null)
-    const doc: ListDocument = { version: 1, dailies, todos }
+    const doc: ListDocument = { version: 1, dailies, todos, tags }
     try {
       if (!filePickerAvailable()) {
         downloadList(doc, fileName)
@@ -702,6 +856,17 @@ export function App() {
       setNeedsPermission(false)
     } catch (error) {
       setStorageNote(error instanceof Error && error.message === "invalid" ? "That file is not a My List file." : "Could not open that file.")
+    }
+  }
+
+  async function disconnectFile() {
+    setStorageNote(null)
+    try {
+      await forgetListFile()
+      setFileName(null)
+      setNeedsPermission(false)
+    } catch {
+      setStorageNote("Could not disconnect that file.")
     }
   }
 
@@ -793,8 +958,10 @@ export function App() {
     )
   }
 
-  const shownDailies = visibleDailies(dailies, dailyFilter, today)
-  const shownTodos = visibleTodos(todos, todoFilter, today)
+  const markerColors = theme === "custom" ? { waiting: colors.waiting, today: colors.today, late: colors.late } : undefined
+  const shownDailies = visibleDailies(dailies, dailyFilter, today).filter((item) => matchesTags(item, selectedTags))
+  const shownTodos = visibleTodos(todos, todoFilter, today).filter((item) => matchesTags(item, selectedTags))
+  const sourceLabel = source === "drive" ? (driveFileName ? `Google Drive · ${driveFileName}` : "Google Drive") : fileName ? `Local file · ${fileName}` : "Local file"
 
   return (
     <div className="app" data-pane={pane}>
@@ -802,78 +969,68 @@ export function App() {
         <Logo />
         <span className="name">My List</span>
         <span className="vdiv" />
-        <span className="toolbar-date">{toolbarDate}</span>
-        <div className="source" data-menu-root="">
-          <button
-            type="button"
-            className={openMenu === "source" ? "menu-btn on" : "menu-btn"}
-            aria-expanded={openMenu === "source"}
-            onClick={() => toggleMenu("source")}
-          >
-            Source <Caret />
-          </button>
-          {openMenu === "source" && (
-            <div className="menu wide" role="menu">
-              <div className="menu-label">One source at a time</div>
-              <SourceOption
-                title="Local file"
-                detail={
-                  fileName
-                    ? needsPermission
-                      ? `${fileName} needs permission to save.`
-                      : fileName
-                    : "Saved in this browser. Choose a file to keep your own copy."
-                }
-                selected={source === "local"}
-                onSelect={() => void chooseLocal()}
-              />
-              {source === "local" && (
-                <div className="source-actions">
-                  <button type="button" className="menu-action" onClick={() => void chooseFile()}>
-                    Open a file
-                  </button>
-                  <button type="button" className="menu-action" onClick={() => void saveAsFile()}>
-                    {filePickerAvailable() ? "Save as a new file" : "Download a copy"}
-                  </button>
-                  {needsPermission && (
-                    <button type="button" className="menu-action" onClick={() => void allowFile()}>
-                      Allow this file
-                    </button>
-                  )}
-                </div>
-              )}
-              <SourceOption
-                title="Google Drive"
-                detail={driveDetail()}
-                selected={source === "drive"}
-                onSelect={() => void connectDrive()}
-              />
-              {(source === "drive" || connecting) && driveConfigured() && (
-                <div className="source-actions">
-                  {driveSignedIn ? (
-                    <button type="button" className="menu-action" onClick={() => void signOutOfDrive()}>
-                      Sign out
-                    </button>
-                  ) : (
-                    <button type="button" className="menu-action" disabled={connecting} onClick={() => void connectDrive()}>
-                      {connecting ? "Signing in…" : "Sign in with Google"}
-                    </button>
-                  )}
-                </div>
-              )}
-              {storageNote && <div className="storage-note">{storageNote}</div>}
-              {!installed &&
-                (installEvent ? (
-                  <div className="source-actions">
-                    <button type="button" className="menu-action" onClick={() => void installApp()}>
-                      Add to Home Screen
-                    </button>
-                  </div>
-                ) : (
-                  <div className="menu-note">{homeScreenHint()}</div>
+        <span className="toolbar-date long">{toolbarDate}</span>
+        <span className="toolbar-date short">{formatMonthDay(today)}</span>
+        <div className="toolbar-actions">
+          <div className="filter" data-menu-root="">
+            <button
+              type="button"
+              className={openMenu === "filters" ? "menu-btn on" : "menu-btn"}
+              aria-expanded={openMenu === "filters"}
+              onClick={() => toggleMenu("filters")}
+            >
+              Filters
+            </button>
+            {openMenu === "filters" && (
+              <div className="menu filters-menu" role="menu">
+                <div className="menu-label">Dailies</div>
+                {dailyFilters.map((filter) => (
+                  <FilterOption
+                    key={filter}
+                    label={dailyFilterLabel[filter]}
+                    selected={dailyFilter === filter}
+                    onSelect={() => setDailyFilter(filter)}
+                  />
                 ))}
-            </div>
-          )}
+                <div className="menu-label">Todos</div>
+                {todoFilters.map((filter) => (
+                  <FilterOption
+                    key={filter}
+                    label={todoFilterLabel[filter]}
+                    selected={todoFilter === filter}
+                    onSelect={() => setTodoFilter(filter)}
+                  />
+                ))}
+                <div className="menu-note">Finished ones stay for a week. Ordered by due date.</div>
+                <div className="menu-label">Tags</div>
+                <div className="filter-tags">
+                  <button type="button" className={selectedTags.length === 0 ? "tag-choice on" : "tag-choice"} onClick={() => setSelectedTags([])}>
+                    All
+                  </button>
+                  {tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={selectedTags.includes(tagLabel(tag)) ? "tag-choice on" : "tag-choice"}
+                      aria-pressed={selectedTags.includes(tagLabel(tag))}
+                      onClick={() =>
+                        setSelectedTags((current) => {
+                          const label = tagLabel(tag)
+                          return current.includes(label) ? current.filter((item) => item !== label) : [...current, label]
+                        })
+                      }
+                    >
+                      {tagLabel(tag)}
+                    </button>
+                  ))}
+                </div>
+                {tags.length === 0 && <div className="menu-note">Add tags from a task or from Settings.</div>}
+              </div>
+            )}
+          </div>
+          <button type="button" className="menu-btn" onClick={() => { setOpenMenu(null); setSettingsOpen(true) }}>
+            Settings
+          </button>
           <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
         </div>
       </header>
@@ -895,78 +1052,10 @@ export function App() {
         </button>
       </div>
 
-      <div className="phone-bar">
-        <span className="when">{toolbarDate}</span>
-        {pane === "dailies" ? (
-          <FilterMenu
-            menu="daily"
-            open={openMenu === "daily"}
-            label={dailyFilterLabel[dailyFilter]}
-            onToggle={() => toggleMenu("daily")}
-          >
-            {dailyFilters.map((filter) => (
-              <FilterOption
-                key={filter}
-                label={dailyFilterLabel[filter]}
-                selected={dailyFilter === filter}
-                onSelect={() => {
-                  setDailyFilter(filter)
-                  setOpenMenu(null)
-                }}
-              />
-            ))}
-          </FilterMenu>
-        ) : (
-          <FilterMenu
-            menu="todo"
-            open={openMenu === "todo"}
-            label={todoFilterLabel[todoFilter]}
-            onToggle={() => toggleMenu("todo")}
-            note="Finished ones stay for a week. Ordered by due date."
-          >
-            {todoFilters.map((filter) => (
-              <FilterOption
-                key={filter}
-                label={todoFilterLabel[filter]}
-                selected={todoFilter === filter}
-                onSelect={() => {
-                  setTodoFilter(filter)
-                  setOpenMenu(null)
-                }}
-              />
-            ))}
-          </FilterMenu>
-        )}
-        <button type="button" className="plus-btn" aria-label={pane === "dailies" ? "Add a daily" : "Add a todo"} onClick={pane === "dailies" ? openNewDaily : openNewTodo}>
-          +
-        </button>
-      </div>
-
       <div className="columns" ref={columnsRef} style={{ "--dailies-width": `${dailiesWidth}px` } as CSSProperties}>
         <section className="pane pane-dailies">
           <div className="pane-head">
             <h1>Dailies</h1>
-            <FilterMenu
-              menu="daily"
-              open={openMenu === "daily"}
-              label={dailyFilterLabel[dailyFilter]}
-              onToggle={() => toggleMenu("daily")}
-            >
-              {dailyFilters.map((filter) => (
-                <FilterOption
-                  key={filter}
-                  label={dailyFilterLabel[filter]}
-                  selected={dailyFilter === filter}
-                  onSelect={() => {
-                    setDailyFilter(filter)
-                    setOpenMenu(null)
-                  }}
-                />
-              ))}
-            </FilterMenu>
-            <button type="button" className="plus-btn" aria-label="Add a daily" onClick={openNewDaily}>
-              +
-            </button>
           </div>
           {refreshBar("dailies")}
           <ul
@@ -990,7 +1079,7 @@ export function App() {
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openDaily(item)}>
-                    <span className="title">{item.title}</span>
+                    <ItemTitle title={item.title} tags={item.tags} />
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="tag">{scheduleLabel(item.schedule)}</span>
                   </button>
@@ -1004,6 +1093,9 @@ export function App() {
               </li>
             ))}
           </ul>
+          <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
+            +
+          </button>
         </section>
 
         <div
@@ -1019,28 +1111,6 @@ export function App() {
         <section className="pane pane-todos">
           <div className="pane-head">
             <h1>Todos</h1>
-            <FilterMenu
-              menu="todo"
-              open={openMenu === "todo"}
-              label={todoFilterLabel[todoFilter]}
-              onToggle={() => toggleMenu("todo")}
-              note="Finished ones stay for a week. Ordered by due date."
-            >
-              {todoFilters.map((filter) => (
-                <FilterOption
-                  key={filter}
-                  label={todoFilterLabel[filter]}
-                  selected={todoFilter === filter}
-                  onSelect={() => {
-                    setTodoFilter(filter)
-                    setOpenMenu(null)
-                  }}
-                />
-              ))}
-            </FilterMenu>
-            <button type="button" className="plus-btn" aria-label="Add a todo" onClick={openNewTodo}>
-              +
-            </button>
           </div>
           {refreshBar("todos")}
           <ul
@@ -1052,7 +1122,7 @@ export function App() {
             onClickCapture={ignorePullClick}
           >
             {shownTodos.map((item) => {
-              const marker = dueMarker(item.due, today, item.doneOn !== null)
+              const marker = dueMarker(item.due, today, item.doneOn !== null, markerColors)
               return (
               <li key={item.id}>
                 <span className="marker" style={{ background: marker.color }} title={marker.label} />
@@ -1067,11 +1137,11 @@ export function App() {
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openTodo(item)}>
-                    <span className="title">{item.title}</span>
+                    <ItemTitle title={item.title} tags={item.tags} />
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
                       {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
-                      <span className="due" style={item.doneOn === null && item.due < today ? { color: marker.color } : undefined}>
+                      <span className="due" style={item.doneOn === null && (theme === "custom" || item.due <= today) ? { color: marker.color } : undefined}>
                         Due {formatMonthDay(item.due)}
                       </span>
                     </span>
@@ -1087,6 +1157,9 @@ export function App() {
               )
             })}
           </ul>
+          <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
+            +
+          </button>
         </section>
       </div>
       {driveBanner && source === "drive" && (
@@ -1120,16 +1193,65 @@ export function App() {
           )}
         </div>
       )}
+      {settingsOpen && (
+        <Settings
+          sourceLabel={sourceLabel}
+          sourceDetail={
+            source === "drive"
+              ? driveDetail()
+              : needsPermission
+                ? "This file needs permission to save."
+                : fileName
+                  ? "Saved in the file you chose."
+                  : "Saved in this browser until you choose a file."
+          }
+          fileName={fileName}
+          driveConnected={source === "drive" && driveSignedIn}
+          driveNote={storageNote ?? ""}
+          needsPermission={needsPermission}
+          installLabel={!installed && installEvent ? "Add to Home Screen" : null}
+          installHint={!installed && !installEvent ? homeScreenHint() : null}
+          theme={theme}
+          colors={colors}
+          tags={tags}
+          onTheme={setTheme}
+          onColors={setColors}
+          onAddTag={addCatalogTag}
+          onRenameTag={renameTag}
+          onDeleteTag={deleteTag}
+          onChooseFile={() => void chooseFile()}
+          onNewFile={() => void saveAsFile()}
+          onDisconnectFile={() => void disconnectFile()}
+          onAllowFile={() => void allowFile()}
+          onConnectDrive={() => void connectDrive()}
+          onSignOut={() => void signOutOfDrive()}
+          onInstall={() => void installApp()}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       {editor && (
         <Editor
           key={`${editor.mode}-${editor.id ?? "new"}`}
           initial={editor}
+          catalog={tags}
           onSave={saveDraft}
           onDelete={deleteDraft}
           onClose={() => setEditor(null)}
         />
       )}
     </div>
+  )
+}
+
+function ItemTitle({ title, tags }: { title: string; tags?: string[] }) {
+  const labels = itemTags({ tags })
+  return (
+    <span className="title">
+      {labels.map((tag) => (
+        <span className="title-tag" key={tag}>{tag}</span>
+      ))}
+      {title}
+    </span>
   )
 }
 
@@ -1191,10 +1313,6 @@ function StepsBlock({
   )
 }
 
-function Caret() {
-  return <i className="caret" />
-}
-
 function AlertIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -1225,58 +1343,6 @@ function CheckMark() {
         strokeLinejoin="round"
       />
     </svg>
-  )
-}
-
-function SourceOption({
-  title,
-  detail,
-  selected,
-  onSelect,
-}: {
-  title: string
-  detail: string
-  selected: boolean
-  onSelect: () => void
-}) {
-  return (
-    <button type="button" className={selected ? "option on" : "option"} role="menuitemradio" aria-checked={selected} onClick={onSelect}>
-      <span className="radio"><i /></span>
-      <span>
-        <span className="opt-title">{title}</span>
-        <span className="opt-sub">{detail}</span>
-      </span>
-    </button>
-  )
-}
-
-function FilterMenu({
-  menu,
-  open,
-  label,
-  onToggle,
-  note,
-  children,
-}: {
-  menu: "daily" | "todo"
-  open: boolean
-  label: string
-  onToggle: () => void
-  note?: string
-  children: ReactNode
-}) {
-  return (
-    <div className="filter" data-menu-root="">
-      <button type="button" className={open ? "menu-btn on" : "menu-btn"} aria-expanded={open} onClick={onToggle}>
-        {label} <Caret />
-      </button>
-      {open && (
-        <div className="menu" role="menu" data-filter={menu}>
-          {children}
-          {note && <div className="menu-note">{note}</div>}
-        </div>
-      )}
-    </div>
   )
 }
 

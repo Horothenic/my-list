@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { DailySchedule, MonthWeek, Step } from "./model"
+import { tagLabel, type DailySchedule, type MonthWeek, type Step } from "./model"
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -19,6 +19,7 @@ export type Draft =
       monthWeek: MonthWeek
       monthWeekday: number
       steps: Step[]
+      tags: string[]
     }
   | {
       mode: "todo"
@@ -28,21 +29,32 @@ export type Draft =
       start: string | null
       due: string
       steps: Step[]
+      tags: string[]
     }
 
 export function Editor({
   initial,
+  catalog,
   onSave,
   onDelete,
   onClose,
 }: {
   initial: Draft
+  catalog: string[]
   onSave: (draft: Draft) => void
   onDelete: () => void
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(initial)
+  const [tagName, setTagName] = useState("")
   const [error, setError] = useState("")
+
+  function addTag() {
+    const name = tagLabel(tagName)
+    if (!name || draft.tags.some((tag) => tagLabel(tag) === name)) return
+    setDraft({ ...draft, tags: [...draft.tags, name] })
+    setTagName("")
+  }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -267,6 +279,43 @@ export function Editor({
             }
           >
             + Add a step
+          </button>
+        </div>
+
+        <span className="field-label">Tags</span>
+        <div className="tag-picks">
+          {[...new Set([...catalog, ...draft.tags].map(tagLabel))].filter((tag) => tag !== "").map((tag) => {
+            const on = draft.tags.some((item) => tagLabel(item) === tag)
+            return (
+            <button
+              key={tag}
+              type="button"
+              className={on ? "tag-choice on" : "tag-choice"}
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  tags: on ? draft.tags.map(tagLabel).filter((item) => item !== tag) : [...new Set([...draft.tags.map(tagLabel), tag])],
+                })
+              }
+            >
+              {tag}
+            </button>
+            )
+          })}
+        </div>
+        <div className="tag-add">
+          <input
+            value={tagName}
+            placeholder="New tag"
+            onChange={(event) => setTagName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return
+              event.preventDefault()
+              addTag()
+            }}
+          />
+          <button type="button" className="menu-btn" onClick={addTag}>
+            Add
           </button>
         </div>
 
