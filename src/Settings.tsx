@@ -58,36 +58,32 @@ export function Settings({
   return (
     <div className="settings">
       <header className="toolbar">
-        <button type="button" className="menu-btn" onClick={onClose}>
-          Back
+        <strong className="settings-title">Settings</strong>
+        <button type="button" className="settings-close" aria-label="Close" onClick={onClose}>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
         </button>
-        <strong>Settings</strong>
       </header>
       <div className="settings-body">
         <p className="settings-label">Source</p>
         <div className="settings-card">
-          <div className="settings-row">
-            <span>
-              {sourceLabel}
-              <span className="opt-sub">{sourceDetail}</span>
-            </span>
+          <div className="settings-row source-status">
+            <span className="source-name">{sourceLabel}</span>
+            <span className="opt-sub">{sourceDetail}</span>
           </div>
-          <div className="settings-row">
-            <button type="button" className="menu-action" onClick={onChooseFile}>Choose a file</button>
-            <button type="button" className="menu-action" onClick={onNewFile}>New file</button>
-            <button type="button" className="menu-action" disabled={!fileName} onClick={onDisconnectFile}>Disconnect</button>
-            {needsPermission && <button type="button" className="menu-action" onClick={onAllowFile}>Allow this file</button>}
-          </div>
-          <div className="settings-row">
-            {driveConnected ? (
-              <button type="button" className="menu-action" onClick={onSignOut}>Sign out of Google Drive</button>
-            ) : (
-              <button type="button" className="menu-action" onClick={onConnectDrive}>Use Google Drive</button>
-            )}
-            {installLabel && <button type="button" className="menu-action" onClick={onInstall}>{installLabel}</button>}
-          </div>
-          {installHint && <div className="settings-row"><span className="opt-sub">{installHint}</span></div>}
+          <button type="button" className="settings-action" onClick={onChooseFile}>Choose a file</button>
+          <button type="button" className="settings-action" onClick={onNewFile}>New file</button>
+          <button type="button" className="settings-action" disabled={!fileName} onClick={onDisconnectFile}>Disconnect</button>
+          {needsPermission && <button type="button" className="settings-action" onClick={onAllowFile}>Allow this file</button>}
+          {driveConnected ? (
+            <button type="button" className="settings-action" onClick={onSignOut}>Sign out of Google Drive</button>
+          ) : (
+            <button type="button" className="settings-action" onClick={onConnectDrive}>Use Google Drive</button>
+          )}
+          {installLabel && <button type="button" className="settings-action" onClick={onInstall}>{installLabel}</button>}
         </div>
+        {installHint && <p className="settings-hint">{installHint}</p>}
         {driveNote && <p className="storage-note">{driveNote}</p>}
 
         <p className="settings-label">Theme</p>

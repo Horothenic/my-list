@@ -68,6 +68,7 @@ const PANE_KEY = "my-list-pane"
 const DAILY_FILTER_KEY = "my-list-daily-filter"
 const TODO_FILTER_KEY = "my-list-todo-filter"
 const TAG_FILTER_KEY = "my-list-tag-filter"
+const WIDTH_KEY = "my-list-dailies-width"
 const REFRESH_EVERY_MS = 15_000
 
 function storedPane(): Pane {
@@ -92,6 +93,25 @@ function storedTodoFilter(): TodoFilter {
     return value === "all" || value === "planned" ? value : "due"
   } catch {
     return "due"
+  }
+}
+
+function storedDailiesWidth(): number {
+  try {
+    const raw = localStorage.getItem(WIDTH_KEY)
+    const value = Number(raw)
+    if (raw && Number.isFinite(value)) return Math.round(Math.min(Math.max(value, 260), 1600))
+  } catch {
+    /* Storage can be blocked in a private window. */
+  }
+  return 500
+}
+
+function rememberDailiesWidth(width: number) {
+  try {
+    localStorage.setItem(WIDTH_KEY, String(width))
+  } catch {
+    /* Storage can be blocked in a private window. */
   }
 }
 
@@ -182,7 +202,7 @@ export function App() {
   tagsRef.current = tags
   editorRef.current = editor
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
-  const [dailiesWidth, setDailiesWidth] = useState(500)
+  const [dailiesWidth, setDailiesWidth] = useState(storedDailiesWidth)
   const [dragging, setDragging] = useState(false)
   const columnsRef = useRef<HTMLDivElement>(null)
 
@@ -789,18 +809,20 @@ export function App() {
     event.preventDefault()
     const originX = event.clientX
     const originWidth = columns.querySelector(".pane-dailies")?.getBoundingClientRect().width ?? dailiesWidth
+    let next = originWidth
     setDragging(true)
     document.body.style.cursor = "col-resize"
     document.body.style.userSelect = "none"
     const move = (ev: PointerEvent) => {
       const total = columns.getBoundingClientRect().width
-      const next = Math.round(Math.min(Math.max(originWidth + ev.clientX - originX, 260), total - 260))
+      next = Math.round(Math.min(Math.max(originWidth + ev.clientX - originX, 260), total - 260))
       setDailiesWidth(next)
     }
     const stop = () => {
       setDragging(false)
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
+      rememberDailiesWidth(next)
       document.removeEventListener("pointermove", move)
       document.removeEventListener("pointerup", stop)
     }
@@ -961,7 +983,7 @@ export function App() {
   const markerColors = theme === "custom" ? { waiting: colors.waiting, today: colors.today, late: colors.late } : undefined
   const shownDailies = visibleDailies(dailies, dailyFilter, today).filter((item) => matchesTags(item, selectedTags))
   const shownTodos = visibleTodos(todos, todoFilter, today).filter((item) => matchesTags(item, selectedTags))
-  const sourceLabel = source === "drive" ? (driveFileName ? `Google Drive · ${driveFileName}` : "Google Drive") : fileName ? `Local file · ${fileName}` : "Local file"
+  const sourceLabel = source === "drive" ? "Google Drive" : "Local file"
 
   return (
     <div className="app" data-pane={pane}>
@@ -1202,7 +1224,7 @@ export function App() {
               : needsPermission
                 ? "This file needs permission to save."
                 : fileName
-                  ? "Saved in the file you chose."
+                  ? fileName
                   : "Saved in this browser until you choose a file."
           }
           fileName={fileName}
