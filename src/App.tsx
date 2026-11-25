@@ -30,6 +30,7 @@ import {
   saveListFile,
   saveSource,
   saveVisible,
+  rememberEmptyList,
 } from "./localStore"
 import {
   dailyFilterLabel,
@@ -257,6 +258,8 @@ export function App() {
         sourceRef.current = snapshot.source
         driveFileRef.current = snapshot.driveFile
         driveBaseRef.current = snapshot.driveBase
+        dailiesRef.current = snapshot.document.dailies
+        todosRef.current = snapshot.document.todos.filter((item) => todoStillKept(item, today))
         showDocument(snapshot.document)
         setFileName(snapshot.fileName)
         setNeedsPermission(snapshot.needsPermission)
@@ -275,10 +278,17 @@ export function App() {
           if (!token) token = await requestDriveToken("")
           if (cancel || connectGen.current !== gen) return
           setDriveSignedIn(true)
-          const doc = listDocument()
-          const sync = await openDriveList(token, doc, snapshot.driveFile, snapshot.driveBase)
+          const saved = snapshot.document
+          const sync = await openDriveList(token, saved, snapshot.driveFile, snapshot.driveBase)
           if (cancel || connectGen.current !== gen || sourceRef.current !== "drive") return
-          applyDriveSync(sync, doc)
+          applyDriveSync(sync, saved)
+          if (
+            sync.kind === "opened" &&
+            saved.dailies.length + saved.todos.length === 0 &&
+            sync.document.dailies.length + sync.document.todos.length > 0
+          ) {
+            setDriveBanner({ kind: "error", message: "Brought your list back from the previous copy on Google Drive." })
+          }
         } catch (error) {
           if (cancel || connectGen.current !== gen) return
           if (currentDriveToken() && !driveNeedsSignIn(error)) {
@@ -350,6 +360,7 @@ export function App() {
               setStorageNote(null)
             }
             if (saveGen.current === gen) lastSent.current = latestText
+            rememberEmptyList(latest.dailies.length === 0 && latest.todos.length === 0)
           } catch (error) {
             if (sourceRef.current === "drive") {
               await saveVisible(latest).catch(() => undefined)

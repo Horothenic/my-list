@@ -9,6 +9,7 @@ const SOURCE_KEY = "source"
 const LOCAL_DOCUMENT_KEY = "localDocument"
 const DRIVE_FILE_KEY = "driveFile"
 const DRIVE_BASE_KEY = "driveBase"
+const KEEP_EMPTY_KEY = "my-list-keep-empty"
 
 export type StoredDriveFile = { id: string; name: string }
 
@@ -83,6 +84,23 @@ export async function loadLocalCopy(): Promise<LocalCopy | null> {
     return { document, fileName: handle?.name ?? null, needsPermission: file.needsPermission }
   } finally {
     db.close()
+  }
+}
+
+export function keepEmptyList(): boolean {
+  try {
+    return localStorage.getItem(KEEP_EMPTY_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+export function rememberEmptyList(empty: boolean) {
+  try {
+    if (empty) localStorage.setItem(KEEP_EMPTY_KEY, "1")
+    else localStorage.removeItem(KEEP_EMPTY_KEY)
+  } catch {
+    /* Storage can be blocked in a private window. */
   }
 }
 

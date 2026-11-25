@@ -1,4 +1,5 @@
 import { parseListDocument, serializeList, type ListDocument } from "./document"
+import { keepEmptyList } from "./localStore"
 
 const SCOPE = "https://www.googleapis.com/auth/drive.file"
 const FILE_NAME = "my-list.json"
@@ -54,6 +55,10 @@ export function googleClientId(): string {
 
 export function driveConfigured(): boolean {
   return googleClientId() !== ""
+}
+
+function hasItems(doc: ListDocument): boolean {
+  return doc.dailies.length > 0 || doc.todos.length > 0
 }
 
 export function decideSync(currentText: string, driveText: string, base: string | null): "same" | "upload" | "download" | "conflict" {
@@ -201,6 +206,30 @@ export async function driveTokenForSave(): Promise<string | null> {
   }
 }
 
+async function earlierList(token: string, id: string): Promise<ListDocument | null> {
+  try {
+    const response = await driveFetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/revisions?pageSize=10&fields=${encodeURIComponent("revisions(id,modifiedTime)")}`,
+      token,
+    )
+    const data = (await response.json()) as { revisions?: Array<{ id?: string; modifiedTime?: string }> }
+    const revisions = (data.revisions ?? [])
+      .filter((item): item is { id: string; modifiedTime?: string } => typeof item.id === "string")
+      .sort((a, b) => (b.modifiedTime ?? "").localeCompare(a.modifiedTime ?? ""))
+    for (const revision of revisions.slice(0, 8)) {
+      const older = await driveFetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revision.id)}?alt=media`,
+        token,
+      )
+      const doc = parseListDocument(await older.text())
+      if (doc && hasItems(doc)) return doc
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 export async function openDriveList(token: string, current: ListDocument, link: DriveLink | null, base: string | null): Promise<DriveSync> {
   const currentText = serializeList(current)
   let resolved = link ? await getDriveFile(token, link.id) : null
@@ -212,8 +241,21 @@ export async function openDriveList(token: string, current: ListDocument, link: 
   const driveText = await downloadDriveText(token, resolved.id)
   const document = parseListDocument(driveText)
   if (!document) throw new Error("invalid")
+  if (!hasItems(document) && !keepEmptyList()) {
+    const earlier = await earlierList(token, resolved.id)
+    if (earlier) {
+      await uploadDriveFile(token, resolved.id, earlier)
+      return { kind: "opened", link: resolved, document: earlier, base: serializeList(earlier) }
+    }
+  }
   const decision = decideSync(currentText, driveText, base)
-  if (decision === "upload") await uploadDriveFile(token, resolved.id, current)
+  if (decision === "upload") {
+    const currentDoc = parseListDocument(currentText)
+    if (currentDoc && !hasItems(currentDoc) && hasItems(document)) {
+      return { kind: "opened", link: resolved, document, base: driveText }
+    }
+    await uploadDriveFile(token, resolved.id, current)
+  }
   if (decision === "same" || decision === "upload") {
     return { kind: "in-sync", link: resolved, base: decision === "upload" ? currentText : driveText }
   }
