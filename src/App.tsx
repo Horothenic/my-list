@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react"
 import { parseListDocument, serializeList, type ListDocument } from "./document"
 import {
   clearDriveToken,
@@ -24,6 +24,7 @@ import {
   openListFile,
   persistLocal,
   pickerWasCancelled,
+  readGrantedList,
   saveDriveLink,
   saveDriveSynced,
   saveListFile,
@@ -56,6 +57,16 @@ import { sampleDailies, sampleTodos } from "./sample"
 
 const today = isoDate(new Date())
 const toolbarDate = formatToolbarDate(new Date())
+const PANE_KEY = "my-list-pane"
+const REFRESH_EVERY_MS = 15_000
+
+function storedPane(): Pane {
+  try {
+    return localStorage.getItem(PANE_KEY) === "todos" ? "todos" : "dailies"
+  } catch {
+    return "dailies"
+  }
+}
 
 function scheduleFromDraft(draft: Extract<Draft, { mode: "daily" }>): DailySchedule {
   if (draft.scheduleKind === "days") return { kind: "days", days: [...draft.days].sort((a, b) => a - b) }
@@ -69,7 +80,7 @@ const todoFilters: TodoFilter[] = ["all", "due", "planned"]
 
 export function App() {
   const [source, setSource] = useState<SourceId>("local")
-  const [pane, setPane] = useState<Pane>("dailies")
+  const [pane, setPane] = useState<Pane>(storedPane)
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
   const [dailyFilter, setDailyFilter] = useState<DailyFilter>("due")
   const [todoFilter, setTodoFilter] = useState<TodoFilter>("due")
@@ -99,10 +110,19 @@ export function App() {
   const saveQueue = useRef(Promise.resolve())
   const connectingRef = useRef(false)
   const connectGen = useRef(0)
+  const refreshingRef = useRef(false)
+  const refreshFromSourceRef = useRef<(manual: boolean) => Promise<void>>(async () => {})
+  const editorRef = useRef<Draft | null>(null)
+  const pullRef = useRef<{ pane: Pane; id: number; y: number; pulling: boolean } | null>(null)
+  const suppressClickRef = useRef(false)
+  const [pull, setPull] = useState(0)
+  const [pullPane, setPullPane] = useState<Pane | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const dailiesRef = useRef(dailies)
   const todosRef = useRef(todos)
   dailiesRef.current = dailies
   todosRef.current = todos
+  editorRef.current = editor
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
   const [dailiesWidth, setDailiesWidth] = useState(500)
   const [dragging, setDragging] = useState(false)
@@ -159,6 +179,51 @@ export function App() {
     void saveDriveLink(sync.link)
     setDriveBanner({ kind: "conflict", message: "This browser and Google Drive both have changes." })
   }
+
+  async function refreshFromSource(manual: boolean) {
+    if (refreshingRef.current || connectingRef.current || conflictRef.current || editorRef.current) return
+    const currentText = serializeList(listDocument())
+    if (lastSent.current !== null && currentText !== lastSent.current) return
+    refreshingRef.current = true
+    if (manual) setRefreshing(true)
+    try {
+      if (sourceRef.current === "drive") {
+        const link = driveFileRef.current
+        const token = currentDriveToken()
+        if (!link || !token || sourceRef.current !== "drive" || editorRef.current) return
+        const doc = listDocument()
+        const started = serializeList(doc)
+        const sync = await openDriveList(token, doc, link, driveBaseRef.current)
+        if (sourceRef.current !== "drive" || editorRef.current || conflictRef.current) return
+        if (serializeList(listDocument()) !== started) return
+        applyDriveSync(sync, doc)
+        return
+      }
+      const fresh = await readGrantedList()
+      if (editorRef.current || sourceRef.current !== "local") return
+      if (!fresh.document) {
+        if (manual && fresh.needsPermission) setNeedsPermission(true)
+        return
+      }
+      const latest = serializeList(listDocument())
+      if (lastSent.current !== null && latest !== lastSent.current) return
+      const text = serializeList(fresh.document)
+      if (text === latest) return
+      await persistLocal(fresh.document)
+      lastSent.current = text
+      showDocument(fresh.document)
+    } catch (error) {
+      if (manual && sourceRef.current === "drive" && currentDriveToken() && !driveNeedsSignIn(error)) {
+        setDriveBanner({ kind: "error", message: driveErrorMessage(error, "Could not update from Google Drive.") })
+      } else if (manual && sourceRef.current === "local") {
+        setStorageNote("Could not update the list.")
+      }
+    } finally {
+      refreshingRef.current = false
+      if (manual) setRefreshing(false)
+    }
+  }
+  refreshFromSourceRef.current = refreshFromSource
 
   useEffect(() => {
     const onPrompt = (event: Event) => {
@@ -302,6 +367,28 @@ export function App() {
     }, 200)
     return () => window.clearTimeout(timer)
   }, [loaded, dailies, todos])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PANE_KEY, pane)
+    } catch {
+      /* Storage can be blocked in a private window. */
+    }
+  }, [pane])
+
+  useEffect(() => {
+    if (!loaded) return
+    const update = () => {
+      if (document.visibilityState !== "visible") return
+      void refreshFromSourceRef.current(false)
+    }
+    const timer = window.setInterval(update, REFRESH_EVERY_MS)
+    document.addEventListener("visibilitychange", update)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", update)
+    }
+  }, [loaded])
 
   function showDocument(doc: ListDocument) {
     setDailies(doc.dailies)
@@ -635,6 +722,66 @@ export function App() {
     setEditor(null)
   }
 
+  function startPull(which: Pane, event: ReactPointerEvent<HTMLUListElement>) {
+    if (event.button !== 0 || event.currentTarget.scrollTop > 0) return
+    pullRef.current = { pane: which, id: event.pointerId, y: event.clientY, pulling: false }
+  }
+
+  function movePull(event: ReactPointerEvent<HTMLUListElement>) {
+    const pullState = pullRef.current
+    if (!pullState || pullState.id !== event.pointerId) return
+    if (event.currentTarget.scrollTop > 0) {
+      pullState.pulling = false
+      setPull(0)
+      return
+    }
+    const distance = event.clientY - pullState.y
+    if (distance < 8) return
+    if (!pullState.pulling) {
+      pullState.pulling = true
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        /* The pointer can already be gone. The gesture still finishes on pointerup. */
+      }
+      setPullPane(pullState.pane)
+    }
+    setPull(Math.min(64, distance))
+  }
+
+  function endPull(event: ReactPointerEvent<HTMLUListElement>) {
+    const pullState = pullRef.current
+    if (!pullState || pullState.id !== event.pointerId) return
+    pullRef.current = null
+    const distance = event.clientY - pullState.y
+    if (pullState.pulling) {
+      suppressClickRef.current = true
+      window.setTimeout(() => {
+        suppressClickRef.current = false
+      }, 400)
+    }
+    setPull(0)
+    if (pullState.pulling && distance >= 48) void refreshFromSource(true)
+  }
+
+  function ignorePullClick(event: ReactMouseEvent) {
+    if (!suppressClickRef.current) return
+    suppressClickRef.current = false
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  function refreshBar(which: Pane) {
+    const active = pullPane === which && (pull > 0 || refreshing)
+    if (!active) return null
+    const label = refreshing ? "Updating…" : pull >= 48 ? "Release to update" : "Pull to update"
+    return (
+      <div className="refresh" style={{ height: refreshing ? 32 : pull }} aria-live="polite">
+        <span>{label}</span>
+      </div>
+    )
+  }
+
   const shownDailies = visibleDailies(dailies, dailyFilter, today)
   const shownTodos = visibleTodos(todos, todoFilter, today)
 
@@ -810,7 +957,15 @@ export function App() {
               +
             </button>
           </div>
-          <ul className="rows">
+          {refreshBar("dailies")}
+          <ul
+            className="rows"
+            onPointerDown={(event) => startPull("dailies", event)}
+            onPointerMove={movePull}
+            onPointerUp={endPull}
+            onPointerCancel={endPull}
+            onClickCapture={ignorePullClick}
+          >
             {shownDailies.map((item) => (
               <li key={item.id}>
                 <button
@@ -876,7 +1031,15 @@ export function App() {
               +
             </button>
           </div>
-          <ul className="rows">
+          {refreshBar("todos")}
+          <ul
+            className="rows"
+            onPointerDown={(event) => startPull("todos", event)}
+            onPointerMove={movePull}
+            onPointerUp={endPull}
+            onPointerCancel={endPull}
+            onClickCapture={ignorePullClick}
+          >
             {shownTodos.map((item) => {
               const marker = dueMarker(item.due, today, item.doneOn !== null)
               return (
@@ -897,7 +1060,9 @@ export function App() {
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
                       {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
-                      <span className={marker.color === "#F47067" ? "due late" : "due"}>Due {formatMonthDay(item.due)}</span>
+                      <span className="due" style={item.doneOn === null && item.due < today ? { color: marker.color } : undefined}>
+                        Due {formatMonthDay(item.due)}
+                      </span>
                     </span>
                   </button>
                   <StepsBlock

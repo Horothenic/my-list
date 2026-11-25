@@ -274,6 +274,16 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+.refresh {
+  flex: none;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  color: #9DA7B3;
+  font-size: 12px;
+}
 .rows > li {
   display: flex;
   align-items: flex-start;
@@ -397,7 +407,6 @@ button.item {
 .from { color: #6E7781; }
 .due { color: #9DA7B3; }
 .due.soon { color: #E3B341; }
-.due.late { color: #F47067; }
 
 @media (max-width: 760px) {
   .vdiv, .toolbar-date, .pane-head { display: none; }

@@ -157,6 +157,17 @@ export async function saveListFile(doc: ListDocument): Promise<FileSystemFileHan
   return handle
 }
 
+export async function readGrantedList(): Promise<{ document: ListDocument | null; needsPermission: boolean }> {
+  const db = await openDb()
+  let handle: FileSystemFileHandle | undefined
+  try {
+    handle = await idbGet<FileSystemFileHandle>(db, HANDLE_KEY)
+  } finally {
+    db.close()
+  }
+  return readGrantedFile(handle)
+}
+
 export async function allowStoredFile(): Promise<{ handle: FileSystemFileHandle; document: ListDocument } | null> {
   const db = await openDb()
   let handle: FileSystemFileHandle | undefined
