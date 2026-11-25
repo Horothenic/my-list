@@ -68,6 +68,7 @@ const PANE_KEY = "my-list-pane"
 const DAILY_FILTER_KEY = "my-list-daily-filter"
 const TODO_FILTER_KEY = "my-list-todo-filter"
 const TAG_FILTER_KEY = "my-list-tag-filter"
+const WIDTH_KEY = "my-list-dailies-width"
 const REFRESH_EVERY_MS = 15_000
 
 function storedPane(): Pane {
@@ -92,6 +93,25 @@ function storedTodoFilter(): TodoFilter {
     return value === "all" || value === "planned" ? value : "due"
   } catch {
     return "due"
+  }
+}
+
+function storedDailiesWidth(): number {
+  try {
+    const raw = localStorage.getItem(WIDTH_KEY)
+    const value = Number(raw)
+    if (raw && Number.isFinite(value)) return Math.round(Math.min(Math.max(value, 260), 1600))
+  } catch {
+    /* Storage can be blocked in a private window. */
+  }
+  return 500
+}
+
+function rememberDailiesWidth(width: number) {
+  try {
+    localStorage.setItem(WIDTH_KEY, String(width))
+  } catch {
+    /* Storage can be blocked in a private window. */
   }
 }
 
@@ -147,7 +167,7 @@ export function App() {
   const [needsPermission, setNeedsPermission] = useState(false)
   const [storageNote, setStorageNote] = useState<string | null>(null)
   const [driveFileName, setDriveFileName] = useState<string | null>(null)
-  const [driveSignedIn, setDriveSignedIn] = useState(false)
+  const [, setDriveSignedIn] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
@@ -182,7 +202,7 @@ export function App() {
   tagsRef.current = tags
   editorRef.current = editor
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({})
-  const [dailiesWidth, setDailiesWidth] = useState(500)
+  const [dailiesWidth, setDailiesWidth] = useState(storedDailiesWidth)
   const [dragging, setDragging] = useState(false)
   const columnsRef = useRef<HTMLDivElement>(null)
 
@@ -789,18 +809,20 @@ export function App() {
     event.preventDefault()
     const originX = event.clientX
     const originWidth = columns.querySelector(".pane-dailies")?.getBoundingClientRect().width ?? dailiesWidth
+    let next = originWidth
     setDragging(true)
     document.body.style.cursor = "col-resize"
     document.body.style.userSelect = "none"
     const move = (ev: PointerEvent) => {
       const total = columns.getBoundingClientRect().width
-      const next = Math.round(Math.min(Math.max(originWidth + ev.clientX - originX, 260), total - 260))
+      next = Math.round(Math.min(Math.max(originWidth + ev.clientX - originX, 260), total - 260))
       setDailiesWidth(next)
     }
     const stop = () => {
       setDragging(false)
       document.body.style.cursor = ""
       document.body.style.userSelect = ""
+      rememberDailiesWidth(next)
       document.removeEventListener("pointermove", move)
       document.removeEventListener("pointerup", stop)
     }
@@ -961,7 +983,11 @@ export function App() {
   const markerColors = theme === "custom" ? { waiting: colors.waiting, today: colors.today, late: colors.late } : undefined
   const shownDailies = visibleDailies(dailies, dailyFilter, today).filter((item) => matchesTags(item, selectedTags))
   const shownTodos = visibleTodos(todos, todoFilter, today).filter((item) => matchesTags(item, selectedTags))
-  const sourceLabel = source === "drive" ? (driveFileName ? `Google Drive · ${driveFileName}` : "Google Drive") : fileName ? `Local file · ${fileName}` : "Local file"
+  const localDetail = needsPermission
+    ? "This file needs permission to save."
+    : fileName
+      ? fileName
+      : "Saved in this browser until you choose a file."
 
   return (
     <div className="app" data-pane={pane}>
@@ -1094,7 +1120,7 @@ export function App() {
             ))}
           </ul>
           <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
-            +
+            <PlusIcon />
           </button>
         </section>
 
@@ -1158,7 +1184,7 @@ export function App() {
             })}
           </ul>
           <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
-            +
+            <PlusIcon />
           </button>
         </section>
       </div>
@@ -1195,18 +1221,11 @@ export function App() {
       )}
       {settingsOpen && (
         <Settings
-          sourceLabel={sourceLabel}
-          sourceDetail={
-            source === "drive"
-              ? driveDetail()
-              : needsPermission
-                ? "This file needs permission to save."
-                : fileName
-                  ? "Saved in the file you chose."
-                  : "Saved in this browser until you choose a file."
-          }
+          source={source}
+          localDetail={localDetail}
+          driveDetail={driveDetail()}
+          connecting={connecting}
           fileName={fileName}
-          driveConnected={source === "drive" && driveSignedIn}
           driveNote={storageNote ?? ""}
           needsPermission={needsPermission}
           installLabel={!installed && installEvent ? "Add to Home Screen" : null}
@@ -1219,6 +1238,7 @@ export function App() {
           onAddTag={addCatalogTag}
           onRenameTag={renameTag}
           onDeleteTag={deleteTag}
+          onChooseLocal={() => void chooseLocal()}
           onChooseFile={() => void chooseFile()}
           onNewFile={() => void saveAsFile()}
           onDisconnectFile={() => void disconnectFile()}
@@ -1327,6 +1347,14 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true">
+      <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   )
 }

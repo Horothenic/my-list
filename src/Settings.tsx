@@ -1,12 +1,14 @@
 import { useState } from "react"
-import { tagLabel } from "./model"
+import { tagLabel, type SourceId } from "./model"
+import { ColorDialog } from "./Pickers"
 import type { CustomColors, ThemeName } from "./theme"
 
 export function Settings({
-  sourceLabel,
-  sourceDetail,
+  source,
+  localDetail,
+  driveDetail,
+  connecting,
   fileName,
-  driveConnected,
   driveNote,
   needsPermission,
   installLabel,
@@ -19,6 +21,7 @@ export function Settings({
   onAddTag,
   onRenameTag,
   onDeleteTag,
+  onChooseLocal,
   onChooseFile,
   onNewFile,
   onDisconnectFile,
@@ -28,10 +31,11 @@ export function Settings({
   onInstall,
   onClose,
 }: {
-  sourceLabel: string
-  sourceDetail: string
+  source: SourceId
+  localDetail: string
+  driveDetail: string
+  connecting: boolean
   fileName: string | null
-  driveConnected: boolean
   driveNote: string
   needsPermission: boolean
   installLabel: string | null
@@ -44,6 +48,7 @@ export function Settings({
   onAddTag: (name: string) => void
   onRenameTag: (from: string, to: string) => void
   onDeleteTag: (name: string) => void
+  onChooseLocal: () => void
   onChooseFile: () => void
   onNewFile: () => void
   onDisconnectFile: () => void
@@ -54,40 +59,51 @@ export function Settings({
   onClose: () => void
 }) {
   const [tagName, setTagName] = useState("")
+  const [colorEdit, setColorEdit] = useState<{ key: keyof CustomColors; label: string } | null>(null)
 
   return (
     <div className="settings">
       <header className="toolbar">
-        <button type="button" className="menu-btn" onClick={onClose}>
-          Back
+        <strong className="settings-title">Settings</strong>
+        <button type="button" className="settings-close" aria-label="Close" onClick={onClose}>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
         </button>
-        <strong>Settings</strong>
       </header>
       <div className="settings-body">
         <p className="settings-label">Source</p>
         <div className="settings-card">
-          <div className="settings-row">
+          <button type="button" className={source === "local" ? "source-choice on" : "source-choice"} aria-pressed={source === "local"} onClick={() => { if (source !== "local") onChooseLocal() }}>
+            <span className="radio"><i /></span>
             <span>
-              {sourceLabel}
-              <span className="opt-sub">{sourceDetail}</span>
+              <span className="source-name">Local file</span>
+              <span className="opt-sub">{source === "local" ? localDetail : "A file on this device, or this browser."}</span>
             </span>
-          </div>
-          <div className="settings-row">
-            <button type="button" className="menu-action" onClick={onChooseFile}>Choose a file</button>
-            <button type="button" className="menu-action" onClick={onNewFile}>New file</button>
-            <button type="button" className="menu-action" disabled={!fileName} onClick={onDisconnectFile}>Disconnect</button>
-            {needsPermission && <button type="button" className="menu-action" onClick={onAllowFile}>Allow this file</button>}
-          </div>
-          <div className="settings-row">
-            {driveConnected ? (
-              <button type="button" className="menu-action" onClick={onSignOut}>Sign out of Google Drive</button>
-            ) : (
-              <button type="button" className="menu-action" onClick={onConnectDrive}>Use Google Drive</button>
-            )}
-            {installLabel && <button type="button" className="menu-action" onClick={onInstall}>{installLabel}</button>}
-          </div>
-          {installHint && <div className="settings-row"><span className="opt-sub">{installHint}</span></div>}
+          </button>
+          {source === "local" && (
+            <div className="source-options">
+              <button type="button" className="settings-action" onClick={onChooseFile}>Choose a file</button>
+              <button type="button" className="settings-action" onClick={onNewFile}>New file</button>
+              {fileName && <button type="button" className="settings-action" onClick={onDisconnectFile}>Disconnect</button>}
+              {needsPermission && <button type="button" className="settings-action" onClick={onAllowFile}>Allow this file</button>}
+            </div>
+          )}
+          <button type="button" className={source === "drive" ? "source-choice on" : "source-choice"} aria-pressed={source === "drive"} onClick={() => { if (source !== "drive") onConnectDrive() }}>
+            <span className="radio"><i /></span>
+            <span>
+              <span className="source-name">Google Drive</span>
+              <span className="opt-sub">{source === "drive" ? driveDetail : connecting ? "Signing in…" : "One file in your Drive."}</span>
+            </span>
+          </button>
+          {source === "drive" && (
+            <div className="source-options">
+              <button type="button" className="settings-action" onClick={onSignOut}>Sign out</button>
+            </div>
+          )}
         </div>
+        {installLabel && <button type="button" className="settings-install" onClick={onInstall}>{installLabel}</button>}
+        {installHint && <p className="settings-hint">{installHint}</p>}
         {driveNote && <p className="storage-note">{driveNote}</p>}
 
         <p className="settings-label">Theme</p>
@@ -100,11 +116,11 @@ export function Settings({
         </div>
         {theme === "custom" && (
           <div className="settings-card" style={{ marginTop: 8 }}>
-            <ColorRow label="Background" value={colors.background} onChange={(background) => onColors({ ...colors, background })} />
-            <ColorRow label="Accent" value={colors.accent} onChange={(accent) => onColors({ ...colors, accent })} />
-            <ColorRow label="Not due yet" value={colors.waiting} onChange={(waiting) => onColors({ ...colors, waiting })} />
-            <ColorRow label="Due today" value={colors.today} onChange={(today) => onColors({ ...colors, today })} />
-            <ColorRow label="Overdue" value={colors.late} onChange={(late) => onColors({ ...colors, late })} />
+            <ColorRow label="Background" value={colors.background} onEdit={() => setColorEdit({ key: "background", label: "Background" })} />
+            <ColorRow label="Accent" value={colors.accent} onEdit={() => setColorEdit({ key: "accent", label: "Accent" })} />
+            <ColorRow label="Not due yet" value={colors.waiting} onEdit={() => setColorEdit({ key: "waiting", label: "Not due yet" })} />
+            <ColorRow label="Due today" value={colors.today} onEdit={() => setColorEdit({ key: "today", label: "Due today" })} />
+            <ColorRow label="Overdue" value={colors.late} onEdit={() => setColorEdit({ key: "late", label: "Overdue" })} />
           </div>
         )}
 
@@ -157,15 +173,26 @@ export function Settings({
           </button>
         </div>
       </div>
+      {colorEdit && (
+        <ColorDialog
+          label={colorEdit.label}
+          value={colors[colorEdit.key]}
+          onClose={() => setColorEdit(null)}
+          onSave={(hex) => {
+            onColors({ ...colors, [colorEdit.key]: hex })
+            setColorEdit(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function ColorRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
   return (
-    <label className="color-row settings-row">
+    <div className="color-row settings-row">
       <span>{label}</span>
-      <input type="color" value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
+      <button type="button" className="swatch-btn" style={{ background: value }} aria-label={label} onClick={onEdit} />
+    </div>
   )
 }

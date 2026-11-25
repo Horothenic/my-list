@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { tagLabel, type DailySchedule, type MonthWeek, type Step } from "./model"
+import { formatMonthDay, tagLabel, type DailySchedule, type MonthWeek, type Step } from "./model"
+import { DateDialog } from "./Pickers"
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -48,6 +49,7 @@ export function Editor({
   const [draft, setDraft] = useState(initial)
   const [tagName, setTagName] = useState("")
   const [error, setError] = useState("")
+  const [dateField, setDateField] = useState<"start" | "due" | null>(null)
 
   function addTag() {
     const name = tagLabel(tagName)
@@ -91,6 +93,7 @@ export function Editor({
   const heading = draft.id === null ? (draft.mode === "daily" ? "New daily" : "New todo") : draft.mode === "daily" ? "Edit daily" : "Edit todo"
 
   return (
+    <>
     <div className="scrim" onMouseDown={onClose}>
       <form
         className="editor"
@@ -211,11 +214,9 @@ export function Editor({
                 From <span className="optional">Optional</span>
               </span>
               <span className="date-line">
-                <input
-                  type="date"
-                  value={draft.start ?? ""}
-                  onChange={(event) => setDraft({ ...draft, start: event.target.value || null })}
-                />
+                <button type="button" className={draft.start ? "date-btn" : "date-btn empty"} onClick={() => setDateField("start")}>
+                  {draft.start ? formatMonthDay(draft.start) : "None"}
+                </button>
                 {draft.start && (
                   <button
                     type="button"
@@ -230,11 +231,9 @@ export function Editor({
             </label>
             <label>
               <span className="field-name">Due</span>
-              <input
-                type="date"
-                value={draft.due}
-                onChange={(event) => setDraft({ ...draft, due: event.target.value })}
-              />
+              <button type="button" className="date-btn" onClick={() => setDateField("due")}>
+                {formatMonthDay(draft.due)}
+              </button>
             </label>
           </div>
         )}
@@ -340,6 +339,20 @@ export function Editor({
         </div>
       </form>
     </div>
+    {dateField && draft.mode === "todo" && (
+      <DateDialog
+        label={dateField === "due" ? "Due" : "From"}
+        value={dateField === "due" ? draft.due : draft.start}
+        optional={dateField === "start"}
+        onClose={() => setDateField(null)}
+        onSave={(iso) => {
+          if (dateField === "due" && iso) setDraft({ ...draft, due: iso })
+          if (dateField === "start") setDraft({ ...draft, start: iso })
+          setDateField(null)
+        }}
+      />
+    )}
+    </>
   )
 }
 
