@@ -42,6 +42,7 @@ import {
   isoDate,
   itemTags,
   matchesTags,
+  tagLabel,
   scheduleLabel,
   scheduledOn,
   todoFilterLabel,
@@ -98,7 +99,7 @@ function storedTagFilter(): string[] {
   try {
     const raw = localStorage.getItem(TAG_FILTER_KEY)
     const data: unknown = raw ? JSON.parse(raw) : []
-    return Array.isArray(data) ? data.filter((item): item is string => typeof item === "string") : []
+    return Array.isArray(data) ? data.filter((item): item is string => typeof item === "string").map(tagLabel).filter((tag) => tag !== "") : []
   } catch {
     return []
   }
@@ -110,10 +111,10 @@ function catalogTags(doc: ListDocument): string[] {
   const seen = new Set<string>()
   const tags: string[] = []
   for (const tag of names) {
-    const key = tag.toLocaleLowerCase()
-    if (!tag.trim() || seen.has(key)) continue
-    seen.add(key)
-    tags.push(tag)
+    const label = tagLabel(tag)
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    tags.push(label)
   }
   return tags
 }
@@ -676,8 +677,8 @@ export function App() {
   function rememberTags(names: string[]) {
     setTags((current) => {
       const next = [...current]
-      for (const name of names) {
-        if (!next.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) next.push(name)
+      for (const name of names.map(tagLabel)) {
+        if (name && !next.includes(name)) next.push(name)
       }
       tagsRef.current = next
       return next
@@ -691,11 +692,12 @@ export function App() {
   }
 
   function renameTag(from: string, to: string) {
-    const name = to.trim()
-    if (!name || name === from) return
+    const name = tagLabel(to)
+    const previous = tagLabel(from)
+    if (!name || name === previous) return
     const swap = (list: string[]) => {
       const next: string[] = []
-      for (const tag of list.map((item) => (item === from ? name : item))) {
+      for (const tag of list.map((item) => (tagLabel(item) === previous ? name : tagLabel(item)))) {
         if (!next.some((item) => item.toLocaleLowerCase() === tag.toLocaleLowerCase())) next.push(tag)
       }
       return next
@@ -711,14 +713,15 @@ export function App() {
   }
 
   function deleteTag(name: string) {
+    const label = tagLabel(name)
     setTags((current) => {
-      const next = current.filter((tag) => tag !== name)
+      const next = current.filter((tag) => tagLabel(tag) !== label)
       tagsRef.current = next
       return next
     })
-    setDailies((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== name) })))
-    setTodos((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== name) })))
-    setSelectedTags((current) => current.filter((tag) => tag !== name))
+    setDailies((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== label) })))
+    setTodos((items) => items.map((item) => ({ ...item, tags: itemTags(item).filter((tag) => tag !== label) })))
+    setSelectedTags((current) => current.filter((tag) => tagLabel(tag) !== label))
   }
 
   function saveDraft(draft: Draft) {
@@ -968,7 +971,7 @@ export function App() {
               Filters
             </button>
             {openMenu === "filters" && (
-              <div className="menu wide filters-menu" role="menu">
+              <div className="menu filters-menu" role="menu">
                 <div className="menu-label">Dailies</div>
                 {dailyFilters.map((filter) => (
                   <FilterOption
@@ -989,17 +992,27 @@ export function App() {
                 ))}
                 <div className="menu-note">Finished ones stay for a week. Ordered by due date.</div>
                 <div className="menu-label">Tags</div>
-                <FilterOption label="All tags" selected={selectedTags.length === 0} onSelect={() => setSelectedTags([])} />
-                {tags.map((tag) => (
-                  <FilterOption
-                    key={tag}
-                    label={tag}
-                    selected={selectedTags.includes(tag)}
-                    onSelect={() =>
-                      setSelectedTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]))
-                    }
-                  />
-                ))}
+                <div className="filter-tags">
+                  <button type="button" className={selectedTags.length === 0 ? "tag-pick on" : "tag-pick"} onClick={() => setSelectedTags([])}>
+                    All
+                  </button>
+                  {tags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={selectedTags.includes(tagLabel(tag)) ? "tag-pick on" : "tag-pick"}
+                      aria-pressed={selectedTags.includes(tagLabel(tag))}
+                      onClick={() =>
+                        setSelectedTags((current) => {
+                          const label = tagLabel(tag)
+                          return current.includes(label) ? current.filter((item) => item !== label) : [...current, label]
+                        })
+                      }
+                    >
+                      {tagLabel(tag)}
+                    </button>
+                  ))}
+                </div>
                 {tags.length === 0 && <div className="menu-note">Add tags from a task or from Settings.</div>}
               </div>
             )}
@@ -1055,10 +1068,9 @@ export function App() {
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openDaily(item)}>
-                    <span className="title">{item.title}</span>
+                    <ItemTitle title={item.title} tags={item.tags} />
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="tag">{scheduleLabel(item.schedule)}</span>
-                    <TagChips tags={item.tags} />
                   </button>
                   <StepsBlock
                     steps={item.steps}
@@ -1114,7 +1126,7 @@ export function App() {
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openTodo(item)}>
-                    <span className="title">{item.title}</span>
+                    <ItemTitle title={item.title} tags={item.tags} />
                     {item.description && <span className="desc">{item.description}</span>}
                     <span className="dates">
                       {item.start && <span className="from">From {formatMonthDay(item.start)}</span>}
@@ -1122,7 +1134,6 @@ export function App() {
                         Due {formatMonthDay(item.due)}
                       </span>
                     </span>
-                    <TagChips tags={item.tags} />
                   </button>
                   <StepsBlock
                     steps={item.steps}
@@ -1221,13 +1232,14 @@ export function App() {
   )
 }
 
-function TagChips({ tags }: { tags?: string[] }) {
-  if (!tags || tags.length === 0) return null
+function ItemTitle({ title, tags }: { title: string; tags?: string[] }) {
+  const labels = itemTags({ tags })
   return (
-    <span className="chips">
-      {tags.map((tag) => (
-        <span className="chip" key={tag}>{tag}</span>
+    <span className="title">
+      {labels.map((tag) => (
+        <span className="title-tag" key={tag}>{tag}</span>
       ))}
+      {title}
     </span>
   )
 }

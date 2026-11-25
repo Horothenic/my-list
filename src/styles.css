@@ -111,6 +111,29 @@ button { font: inherit; color: inherit; }
   border-color: var(--accent);
 }
 
+.filters-menu {
+  left: auto;
+  right: 0;
+  width: min(440px, calc(100vw - 32px));
+  max-height: min(72dvh, 560px);
+  overflow: auto;
+  padding: 10px;
+}
+
+.filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 6px 8px;
+}
+
+.filter-tags .tag-pick {
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
 .plus-btn {
   width: 28px;
   margin-left: auto;
@@ -427,11 +450,17 @@ button.item {
 }
 
 .title { font-size: 14px; }
+.title-tag {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
 .pane-dailies .title { grid-column: 1; grid-row: 1; }
 .desc { color: var(--muted); font-size: 12px; }
 .pane-dailies .desc { grid-column: 1; grid-row: 2; }
 .pane-dailies .tag { grid-column: 2; grid-row: 1 / span 2; }
-.pane-dailies .chips { grid-column: 1 / -1; }
 
 .tag {
   height: 22px;
@@ -449,16 +478,6 @@ button.item {
 .due { color: var(--muted); }
 .due.soon { color: var(--warn); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.chip {
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--raised);
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 18px;
-}
 .field-label { display: block; margin: 4px 0 8px; color: var(--muted); font-size: 12px; }
 
 .fab {

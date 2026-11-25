@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { DailySchedule, MonthWeek, Step } from "./model"
+import { tagLabel, type DailySchedule, type MonthWeek, type Step } from "./model"
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -50,8 +50,8 @@ export function Editor({
   const [error, setError] = useState("")
 
   function addTag() {
-    const name = tagName.trim()
-    if (!name || draft.tags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return
+    const name = tagLabel(tagName)
+    if (!name || draft.tags.some((tag) => tagLabel(tag) === name)) return
     setDraft({ ...draft, tags: [...draft.tags, name] })
     setTagName("")
   }
@@ -284,21 +284,24 @@ export function Editor({
 
         <span className="field-label">Tags</span>
         <div className="tag-picks">
-          {[...new Set([...catalog, ...draft.tags])].map((tag) => (
+          {[...new Set([...catalog, ...draft.tags].map(tagLabel))].filter((tag) => tag !== "").map((tag) => {
+            const on = draft.tags.some((item) => tagLabel(item) === tag)
+            return (
             <button
               key={tag}
               type="button"
-              className={draft.tags.includes(tag) ? "tag-pick on" : "tag-pick"}
+              className={on ? "tag-pick on" : "tag-pick"}
               onClick={() =>
                 setDraft({
                   ...draft,
-                  tags: draft.tags.includes(tag) ? draft.tags.filter((item) => item !== tag) : [...draft.tags, tag],
+                  tags: on ? draft.tags.map(tagLabel).filter((item) => item !== tag) : [...new Set([...draft.tags.map(tagLabel), tag])],
                 })
               }
             >
               {tag}
             </button>
-          ))}
+            )
+          })}
         </div>
         <div className="tag-add">
           <input

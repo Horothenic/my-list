@@ -47,13 +47,18 @@ export type MarkerColors = {
   late: string
 }
 
+export function tagLabel(name: string): string {
+  return name.trim().toLocaleUpperCase()
+}
+
 export function itemTags(item: { tags?: string[] }): string[] {
-  return item.tags ?? []
+  return (item.tags ?? []).map(tagLabel).filter((tag) => tag !== "")
 }
 
 export function matchesTags(item: { tags?: string[] }, selected: string[]): boolean {
   if (selected.length === 0) return true
-  return itemTags(item).some((tag) => selected.includes(tag))
+  const wanted = new Set(selected.map(tagLabel))
+  return itemTags(item).some((tag) => wanted.has(tag))
 }
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]

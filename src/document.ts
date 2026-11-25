@@ -1,4 +1,4 @@
-import type { Daily, DailySchedule, MonthWeek, Step, Todo } from "./model"
+import { tagLabel, type Daily, type DailySchedule, type MonthWeek, type Step, type Todo } from "./model"
 
 export type ListDocument = {
   version: 1
@@ -123,10 +123,10 @@ function uniqueTags(tags: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const tag of tags) {
-    const key = tag.toLocaleLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    unique.push(tag)
+    const label = tagLabel(tag)
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    unique.push(label)
   }
   return unique
 }

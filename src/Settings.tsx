@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { tagLabel } from "./model"
 import type { CustomColors, ThemeName } from "./theme"
 
 export function Settings({
@@ -111,14 +112,14 @@ export function Settings({
           {tags.length === 0 && <div className="settings-row"><span className="opt-sub">No tags yet</span></div>}
           {tags.map((tag) => (
             <div className="settings-row" key={tag}>
-              <span>{tag}</span>
+              <span>{tagLabel(tag)}</span>
               <span>
                 <button
                   type="button"
                   className="menu-action"
                   onClick={() => {
-                    const next = window.prompt("Rename tag", tag)?.trim()
-                    if (next && next !== tag) onRenameTag(tag, next)
+                    const next = tagLabel(window.prompt("Rename tag", tagLabel(tag)) ?? "")
+                    if (next && next !== tagLabel(tag)) onRenameTag(tag, next)
                   }}
                 >
                   Rename
@@ -135,7 +136,7 @@ export function Settings({
             onChange={(event) => setTagName(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Enter") return
-              const name = tagName.trim()
+              const name = tagLabel(tagName)
               if (!name) return
               onAddTag(name)
               setTagName("")
@@ -145,7 +146,7 @@ export function Settings({
             type="button"
             className="menu-btn"
             onClick={() => {
-              const name = tagName.trim()
+              const name = tagLabel(tagName)
               if (!name) return
               onAddTag(name)
               setTagName("")
