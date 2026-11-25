@@ -556,32 +556,56 @@ button.item {
 .settings-close:hover { background: var(--raised); }
 .settings-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 16px 32px; }
 .settings-label { margin: 18px 0 8px; color: var(--muted); font-size: 12px; }
-.settings-row.source-status {
+.source-choice {
+  display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
-  flex-direction: column;
-  gap: 2px;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  background: var(--bar);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.source-name { font-weight: 600; }
-.source-status .opt-sub { margin-top: 0; }
+.source-choice + .source-choice,
+.source-options + .source-choice { border-top: 1px solid var(--line); }
+.source-choice .radio { margin-top: 2px; }
+.source-choice.on .radio { border-color: var(--accent); }
+.source-choice.on .radio i { background: var(--accent); }
+.source-name { display: block; font-weight: 600; }
+.source-choice .opt-sub { display: block; margin-top: 1px; }
+.source-options { background: var(--bar); }
 .settings-action {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0 12px 0 38px;
   border: 0;
-  border-top: 1px solid var(--line);
   background: var(--bar);
-  color: var(--text);
+  color: var(--text-soft);
   font: inherit;
   font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
-.settings-action:hover { background: var(--raised); }
-.settings-action:disabled { color: var(--faint); cursor: default; }
-.settings-action:disabled:hover { background: var(--bar); }
+.settings-action:hover { background: var(--raised); color: var(--text); }
+.settings-install {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 .settings-hint { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
 .settings-card { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .settings-row {

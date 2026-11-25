@@ -167,7 +167,7 @@ export function App() {
   const [needsPermission, setNeedsPermission] = useState(false)
   const [storageNote, setStorageNote] = useState<string | null>(null)
   const [driveFileName, setDriveFileName] = useState<string | null>(null)
-  const [driveSignedIn, setDriveSignedIn] = useState(false)
+  const [, setDriveSignedIn] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
@@ -983,7 +983,11 @@ export function App() {
   const markerColors = theme === "custom" ? { waiting: colors.waiting, today: colors.today, late: colors.late } : undefined
   const shownDailies = visibleDailies(dailies, dailyFilter, today).filter((item) => matchesTags(item, selectedTags))
   const shownTodos = visibleTodos(todos, todoFilter, today).filter((item) => matchesTags(item, selectedTags))
-  const sourceLabel = source === "drive" ? "Google Drive" : "Local file"
+  const localDetail = needsPermission
+    ? "This file needs permission to save."
+    : fileName
+      ? fileName
+      : "Saved in this browser until you choose a file."
 
   return (
     <div className="app" data-pane={pane}>
@@ -1217,18 +1221,11 @@ export function App() {
       )}
       {settingsOpen && (
         <Settings
-          sourceLabel={sourceLabel}
-          sourceDetail={
-            source === "drive"
-              ? driveDetail()
-              : needsPermission
-                ? "This file needs permission to save."
-                : fileName
-                  ? fileName
-                  : "Saved in this browser until you choose a file."
-          }
+          source={source}
+          localDetail={localDetail}
+          driveDetail={driveDetail()}
+          connecting={connecting}
           fileName={fileName}
-          driveConnected={source === "drive" && driveSignedIn}
           driveNote={storageNote ?? ""}
           needsPermission={needsPermission}
           installLabel={!installed && installEvent ? "Add to Home Screen" : null}
@@ -1241,6 +1238,7 @@ export function App() {
           onAddTag={addCatalogTag}
           onRenameTag={renameTag}
           onDeleteTag={deleteTag}
+          onChooseLocal={() => void chooseLocal()}
           onChooseFile={() => void chooseFile()}
           onNewFile={() => void saveAsFile()}
           onDisconnectFile={() => void disconnectFile()}

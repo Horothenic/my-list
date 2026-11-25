@@ -1,12 +1,13 @@
 import { useState } from "react"
-import { tagLabel } from "./model"
+import { tagLabel, type SourceId } from "./model"
 import type { CustomColors, ThemeName } from "./theme"
 
 export function Settings({
-  sourceLabel,
-  sourceDetail,
+  source,
+  localDetail,
+  driveDetail,
+  connecting,
   fileName,
-  driveConnected,
   driveNote,
   needsPermission,
   installLabel,
@@ -19,6 +20,7 @@ export function Settings({
   onAddTag,
   onRenameTag,
   onDeleteTag,
+  onChooseLocal,
   onChooseFile,
   onNewFile,
   onDisconnectFile,
@@ -28,10 +30,11 @@ export function Settings({
   onInstall,
   onClose,
 }: {
-  sourceLabel: string
-  sourceDetail: string
+  source: SourceId
+  localDetail: string
+  driveDetail: string
+  connecting: boolean
   fileName: string | null
-  driveConnected: boolean
   driveNote: string
   needsPermission: boolean
   installLabel: string | null
@@ -44,6 +47,7 @@ export function Settings({
   onAddTag: (name: string) => void
   onRenameTag: (from: string, to: string) => void
   onDeleteTag: (name: string) => void
+  onChooseLocal: () => void
   onChooseFile: () => void
   onNewFile: () => void
   onDisconnectFile: () => void
@@ -68,21 +72,35 @@ export function Settings({
       <div className="settings-body">
         <p className="settings-label">Source</p>
         <div className="settings-card">
-          <div className="settings-row source-status">
-            <span className="source-name">{sourceLabel}</span>
-            <span className="opt-sub">{sourceDetail}</span>
-          </div>
-          <button type="button" className="settings-action" onClick={onChooseFile}>Choose a file</button>
-          <button type="button" className="settings-action" onClick={onNewFile}>New file</button>
-          <button type="button" className="settings-action" disabled={!fileName} onClick={onDisconnectFile}>Disconnect</button>
-          {needsPermission && <button type="button" className="settings-action" onClick={onAllowFile}>Allow this file</button>}
-          {driveConnected ? (
-            <button type="button" className="settings-action" onClick={onSignOut}>Sign out of Google Drive</button>
-          ) : (
-            <button type="button" className="settings-action" onClick={onConnectDrive}>Use Google Drive</button>
+          <button type="button" className={source === "local" ? "source-choice on" : "source-choice"} aria-pressed={source === "local"} onClick={() => { if (source !== "local") onChooseLocal() }}>
+            <span className="radio"><i /></span>
+            <span>
+              <span className="source-name">Local file</span>
+              <span className="opt-sub">{source === "local" ? localDetail : "A file on this device, or this browser."}</span>
+            </span>
+          </button>
+          {source === "local" && (
+            <div className="source-options">
+              <button type="button" className="settings-action" onClick={onChooseFile}>Choose a file</button>
+              <button type="button" className="settings-action" onClick={onNewFile}>New file</button>
+              {fileName && <button type="button" className="settings-action" onClick={onDisconnectFile}>Disconnect</button>}
+              {needsPermission && <button type="button" className="settings-action" onClick={onAllowFile}>Allow this file</button>}
+            </div>
           )}
-          {installLabel && <button type="button" className="settings-action" onClick={onInstall}>{installLabel}</button>}
+          <button type="button" className={source === "drive" ? "source-choice on" : "source-choice"} aria-pressed={source === "drive"} onClick={() => { if (source !== "drive") onConnectDrive() }}>
+            <span className="radio"><i /></span>
+            <span>
+              <span className="source-name">Google Drive</span>
+              <span className="opt-sub">{source === "drive" ? driveDetail : connecting ? "Signing in…" : "One file in your Drive."}</span>
+            </span>
+          </button>
+          {source === "drive" && (
+            <div className="source-options">
+              <button type="button" className="settings-action" onClick={onSignOut}>Sign out</button>
+            </div>
+          )}
         </div>
+        {installLabel && <button type="button" className="settings-install" onClick={onInstall}>{installLabel}</button>}
         {installHint && <p className="settings-hint">{installHint}</p>}
         {driveNote && <p className="storage-note">{driveNote}</p>}
 
