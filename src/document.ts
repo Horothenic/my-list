@@ -4,6 +4,7 @@ export type ListDocument = {
   version: 1
   dailies: Daily[]
   todos: Todo[]
+  tags: string[]
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -13,7 +14,7 @@ export function serializeList(doc: ListDocument): string {
 }
 
 export function parseListDocument(text: string): ListDocument | null {
-  if (text.trim() === "") return { version: 1, dailies: [], todos: [] }
+  if (text.trim() === "") return { version: 1, dailies: [], todos: [], tags: [] }
   let data: unknown
   try {
     data = JSON.parse(text)
@@ -34,7 +35,8 @@ export function parseListDocument(text: string): ListDocument | null {
     if (!todo) return null
     todos.push(todo)
   }
-  return { version: 1, dailies, todos }
+  const tags = uniqueTags([parseTagList(data.tags), dailies.flatMap((item) => item.tags ?? []), todos.flatMap((item) => item.tags ?? [])].flat())
+  return { version: 1, dailies, todos, tags }
 }
 
 function parseDaily(value: unknown): Daily | null {
@@ -50,6 +52,7 @@ function parseDaily(value: unknown): Daily | null {
     schedule,
     steps,
     doneOn,
+    tags: parseTagList(value.tags),
   }
 }
 
@@ -68,6 +71,7 @@ function parseTodo(value: unknown): Todo | null {
     due,
     steps,
     doneOn,
+    tags: parseTagList(value.tags),
   }
 }
 
@@ -108,6 +112,23 @@ function parseOptionalDate(value: unknown): string | null | undefined {
   if (value === null) return null
   if (typeof value === "string" && DATE.test(value)) return value
   return undefined
+}
+
+function parseTagList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return uniqueTags(value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter((item) => item !== ""))
+}
+
+function uniqueTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const tag of tags) {
+    const key = tag.toLocaleLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(tag)
+  }
+  return unique
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

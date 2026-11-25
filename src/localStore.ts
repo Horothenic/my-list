@@ -167,6 +167,15 @@ export async function openListFile(): Promise<{ handle: FileSystemFileHandle; do
   return { handle, document }
 }
 
+export async function forgetListFile() {
+  const db = await openDb()
+  try {
+    await idbDelete(db, HANDLE_KEY)
+  } finally {
+    db.close()
+  }
+}
+
 export async function saveListFile(doc: ListDocument): Promise<FileSystemFileHandle | null> {
   if (!window.showSaveFilePicker) return null
   const handle = await window.showSaveFilePicker({ suggestedName: "my-list.json", types: listFileTypes })
@@ -273,6 +282,14 @@ function idbGet<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key)
     request.onsuccess = () => resolve(request.result as T | undefined)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+function idbDelete(db: IDBDatabase, key: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE, "readwrite").objectStore(STORE).delete(key)
+    request.onsuccess = () => resolve()
     request.onerror = () => reject(request.error)
   })
 }

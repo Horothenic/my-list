@@ -19,6 +19,7 @@ export type Draft =
       monthWeek: MonthWeek
       monthWeekday: number
       steps: Step[]
+      tags: string[]
     }
   | {
       mode: "todo"
@@ -28,21 +29,32 @@ export type Draft =
       start: string | null
       due: string
       steps: Step[]
+      tags: string[]
     }
 
 export function Editor({
   initial,
+  catalog,
   onSave,
   onDelete,
   onClose,
 }: {
   initial: Draft
+  catalog: string[]
   onSave: (draft: Draft) => void
   onDelete: () => void
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(initial)
+  const [tagName, setTagName] = useState("")
   const [error, setError] = useState("")
+
+  function addTag() {
+    const name = tagName.trim()
+    if (!name || draft.tags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return
+    setDraft({ ...draft, tags: [...draft.tags, name] })
+    setTagName("")
+  }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -267,6 +279,40 @@ export function Editor({
             }
           >
             + Add a step
+          </button>
+        </div>
+
+        <span className="field-label">Tags</span>
+        <div className="tag-picks">
+          {[...new Set([...catalog, ...draft.tags])].map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              className={draft.tags.includes(tag) ? "tag-pick on" : "tag-pick"}
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  tags: draft.tags.includes(tag) ? draft.tags.filter((item) => item !== tag) : [...draft.tags, tag],
+                })
+              }
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+        <div className="tag-add">
+          <input
+            value={tagName}
+            placeholder="New tag"
+            onChange={(event) => setTagName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return
+              event.preventDefault()
+              addTag()
+            }}
+          />
+          <button type="button" className="menu-btn" onClick={addTag}>
+            Add
           </button>
         </div>
 
