@@ -12,8 +12,9 @@ html {
   --text-soft: #C9D1D9;
   --muted: #9DA7B3;
   --faint: #6E7781;
-  --accent: #4493F8;
-  --accent-bg: #1B3354;
+  --accent: #E6EDF3;
+  --accent-bg: #2D333B;
+  --accent-ink: #1E2227;
   --ok: #57AB5A;
   --danger: #F47067;
   --warn: #E3B341;
@@ -33,8 +34,9 @@ html[data-theme="light"] {
   --text-soft: #424a53;
   --muted: #656d76;
   --faint: #6e7781;
-  --accent: #0969da;
-  --accent-bg: #ddf4ff;
+  --accent: #1f2328;
+  --accent-bg: #eef1f4;
+  --accent-ink: #ffffff;
   --ok: #1a7f37;
   --danger: #d1242f;
   --warn: #9a6700;
@@ -509,7 +511,7 @@ button.item {
   border: 0;
   border-radius: 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   font-size: 32px;
   line-height: 1;
   cursor: pointer;
@@ -733,7 +735,7 @@ button.item {
   border: 0;
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

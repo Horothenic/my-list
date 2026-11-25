@@ -60,7 +60,7 @@ import {
   type TodoFilter,
 } from "./model"
 import { sampleDailies, sampleTodos } from "./sample"
-import { rememberColors, rememberTheme, storedColors, storedTheme, type CustomColors, type ThemeName } from "./theme"
+import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, type CustomColors, type ThemeName } from "./theme"
 
 const today = isoDate(new Date())
 const toolbarDate = formatToolbarDate(new Date())
@@ -442,11 +442,22 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    if (theme === "custom") document.documentElement.style.setProperty("--custom-bg", colors.background)
-    else document.documentElement.style.removeProperty("--custom-bg")
+    const root = document.documentElement
+    if (theme === "custom") {
+      const paint = accentPaint(colors.accent, colors.background)
+      root.style.setProperty("--custom-bg", colors.background)
+      root.style.setProperty("--accent", paint.accent)
+      root.style.setProperty("--accent-bg", paint.bg)
+      root.style.setProperty("--accent-ink", paint.ink)
+    } else {
+      root.style.removeProperty("--custom-bg")
+      root.style.removeProperty("--accent")
+      root.style.removeProperty("--accent-bg")
+      root.style.removeProperty("--accent-ink")
+    }
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f6f8fa" : "#24292F")
     rememberTheme(theme)
-  }, [theme, colors.background])
+  }, [theme, colors.background, colors.accent])
 
   useEffect(() => {
     rememberColors(colors)

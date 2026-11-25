@@ -101,6 +101,7 @@ export function Settings({
         {theme === "custom" && (
           <div className="settings-card" style={{ marginTop: 8 }}>
             <ColorRow label="Background" value={colors.background} onChange={(background) => onColors({ ...colors, background })} />
+            <ColorRow label="Accent" value={colors.accent} onChange={(accent) => onColors({ ...colors, accent })} />
             <ColorRow label="Not due yet" value={colors.waiting} onChange={(waiting) => onColors({ ...colors, waiting })} />
             <ColorRow label="Due today" value={colors.today} onChange={(today) => onColors({ ...colors, today })} />
             <ColorRow label="Overdue" value={colors.late} onChange={(late) => onColors({ ...colors, late })} />
