@@ -24,7 +24,7 @@ export default defineConfig({
     safariFavicon(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "favicon.svg", "apple-touch-icon.png"],
+      includeAssets: ["apple-touch-icon.png"],
       manifest: {
         name: "My List",
         short_name: "My List",
@@ -42,6 +42,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/favicon\.ico/],
+        globIgnores: ["**/favicon.ico", "**/favicon.svg"],
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
       },
     }),
