@@ -83,7 +83,7 @@ button { font: inherit; color: inherit; }
 }
 
 .logo { width: 22px; height: 22px; display: block; flex: none; }
-.name { font-weight: 600; font-size: 14px; }
+.name { font-weight: 600; font-size: 14px; flex: none; white-space: nowrap; }
 .vdiv { width: 1px; height: 20px; background: var(--line); flex: none; }
 .toolbar-date { color: var(--muted); font-size: 13px; }
 .toolbar-date.short { display: none; }
@@ -744,7 +744,7 @@ button.item {
 }
 
 @media (max-width: 760px) {
-  .name, .vdiv, .pane-head, .toolbar-date.long { display: none; }
+  .vdiv, .pane-head, .toolbar-date.long { display: none; }
   .toolbar-date.short { display: inline; }
   .segment { display: flex; margin: 12px 16px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .seg {
