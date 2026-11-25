@@ -1094,7 +1094,7 @@ export function App() {
             ))}
           </ul>
           <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
-            +
+            <PlusIcon />
           </button>
         </section>
 
@@ -1158,7 +1158,7 @@ export function App() {
             })}
           </ul>
           <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
-            +
+            <PlusIcon />
           </button>
         </section>
       </div>
@@ -1327,6 +1327,14 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <path d="M4.4 4.4 L11.6 11.6 M11.6 4.4 L4.4 11.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true">
+      <path d="M8 3.25v9.5M3.25 8h9.5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   )
 }

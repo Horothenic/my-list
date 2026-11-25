@@ -106,6 +106,8 @@ button { font: inherit; color: inherit; }
   border-color: var(--line);
   color: var(--text);
   font-size: 13px;
+  justify-content: center;
+  line-height: 1;
 }
 
 .menu-btn.on {
@@ -505,15 +507,18 @@ button.item {
   right: 16px;
   bottom: calc(16px + env(safe-area-inset-bottom));
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 56px;
   height: 56px;
   margin: 0;
+  padding: 0;
   border: 0;
   border-radius: 16px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 32px;
-  line-height: 1;
+  line-height: 0;
   cursor: pointer;
 }
 
@@ -553,7 +558,8 @@ button.item {
   cursor: pointer;
 }
 .tag-pick.on { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
-.tag-add { display: flex; gap: 8px; margin-top: 8px; }
+.tag-add { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tag-add .menu-btn { height: 36px; flex: none; }
 .tag-add input {
   flex: 1;
   min-width: 0;
@@ -648,6 +654,8 @@ button.item {
 
 .editor textarea { resize: vertical; }
 
+.editor .tag-add input { width: auto; margin-top: 0; }
+
 .editor select { height: 36px; padding-top: 0; padding-bottom: 0; }
 
 .schedule { margin-bottom: 12px; }
@@ -714,13 +722,22 @@ button.item {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 16px;
 }
 
-.editor-actions-right { display: flex; gap: 8px; }
+.editor-actions-right { display: flex; align-items: center; gap: 8px; }
+.editor-actions .menu-btn,
+.save-btn,
+.text-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  line-height: 1;
+}
 
 .text-danger {
-  height: 32px;
+  height: 36px;
   padding: 0 10px;
   border: 0;
   background: transparent;
@@ -730,7 +747,7 @@ button.item {
 }
 
 .save-btn {
-  height: 32px;
+  height: 36px;
   padding: 0 14px;
   border: 0;
   border-radius: 6px;
