@@ -274,6 +274,16 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+.refresh {
+  flex: none;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  color: #9DA7B3;
+  font-size: 12px;
+}
 .rows > li {
   display: flex;
   align-items: flex-start;
