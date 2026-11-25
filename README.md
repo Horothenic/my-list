@@ -38,4 +38,4 @@ npm run build
 npm run preview
 ```
 
-The public site is [https://horothenic.github.io/my-list/](https://horothenic.github.io/my-list/). Open that address on a phone or another computer. Sign in to Google Drive on each one so they share the same list. The site address must be an authorized JavaScript origin on the Google client: `https://horothenic.github.io`.
+The public site is [https://mylist.horothenic.com/](https://mylist.horothenic.com/). Open that address on a phone or another computer. Sign in to Google Drive on each one so they share the same list. The site address must be an authorized JavaScript origin on the Google client: `https://mylist.horothenic.com`.
