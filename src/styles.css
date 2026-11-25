@@ -127,11 +127,23 @@ button { font: inherit; color: inherit; }
   padding: 4px 6px 8px;
 }
 
-.filter-tags .tag-pick {
-  height: 40px;
-  padding: 0 14px;
-  font-size: 14px;
+.filter-tags .tag-choice,
+.tag-picks .tag-choice {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.04em;
+}
+.filter-tags .tag-choice.on,
+.tag-picks .tag-choice.on {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .plus-btn {
@@ -451,11 +463,17 @@ button.item {
 
 .title { font-size: 14px; }
 .title-tag {
+  display: inline-block;
   margin-right: 6px;
-  color: var(--muted);
-  font-size: 12px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--accent);
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  line-height: 18px;
+  vertical-align: 1px;
 }
 .pane-dailies .title { grid-column: 1; grid-row: 1; }
 .desc { color: var(--muted); font-size: 12px; }

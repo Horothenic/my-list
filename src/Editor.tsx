@@ -290,7 +290,7 @@ export function Editor({
             <button
               key={tag}
               type="button"
-              className={on ? "tag-pick on" : "tag-pick"}
+              className={on ? "tag-choice on" : "tag-choice"}
               onClick={() =>
                 setDraft({
                   ...draft,

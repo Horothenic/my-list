@@ -112,7 +112,7 @@ export function Settings({
           {tags.length === 0 && <div className="settings-row"><span className="opt-sub">No tags yet</span></div>}
           {tags.map((tag) => (
             <div className="settings-row" key={tag}>
-              <span>{tagLabel(tag)}</span>
+              <span className="title-tag">{tagLabel(tag)}</span>
               <span>
                 <button
                   type="button"

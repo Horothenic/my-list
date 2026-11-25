@@ -993,14 +993,14 @@ export function App() {
                 <div className="menu-note">Finished ones stay for a week. Ordered by due date.</div>
                 <div className="menu-label">Tags</div>
                 <div className="filter-tags">
-                  <button type="button" className={selectedTags.length === 0 ? "tag-pick on" : "tag-pick"} onClick={() => setSelectedTags([])}>
+                  <button type="button" className={selectedTags.length === 0 ? "tag-choice on" : "tag-choice"} onClick={() => setSelectedTags([])}>
                     All
                   </button>
                   {tags.map((tag) => (
                     <button
                       key={tag}
                       type="button"
-                      className={selectedTags.includes(tagLabel(tag)) ? "tag-pick on" : "tag-pick"}
+                      className={selectedTags.includes(tagLabel(tag)) ? "tag-choice on" : "tag-choice"}
                       aria-pressed={selectedTags.includes(tagLabel(tag))}
                       onClick={() =>
                         setSelectedTags((current) => {
