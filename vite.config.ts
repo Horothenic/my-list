@@ -1,11 +1,27 @@
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import { VitePWA } from "vite-plugin-pwa"
+
+function safariFavicon(): Plugin {
+  return {
+    name: "safari-favicon",
+    transformIndexHtml: {
+      order: "post",
+      handler(html) {
+        return html.replace(
+          /<link rel="shortcut icon"[^>]*>/,
+          '<link rel="shortcut icon" type="image/x-icon" href="favicon.ico?v=4">',
+        )
+      },
+    },
+  }
+}
 
 export default defineConfig({
   base: process.env.GITHUB_PAGES === "true" ? "/my-list/" : "/",
   plugins: [
     react(),
+    safariFavicon(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "favicon.svg", "apple-touch-icon.png"],
@@ -25,6 +41,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "index.html",
+        navigateFallbackDenylist: [/favicon\.ico/],
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
       },
     }),
