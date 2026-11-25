@@ -6,6 +6,17 @@ export default defineConfig({
   base: process.env.GITHUB_PAGES === "true" ? "/my-list/" : "/",
   plugins: [
     react(),
+    {
+      name: "legal-pages",
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          const url = req.url?.split("?")[0]
+          if (url === "/privacy" || url === "/privacy/") req.url = "/privacy/index.html"
+          if (url === "/terms" || url === "/terms/") req.url = "/terms/index.html"
+          next()
+        })
+      },
+    },
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
@@ -25,6 +36,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "index.html",
+        navigateFallbackDenylist: [/\/privacy\/?$/, /\/terms\/?$/],
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
       },
     }),
