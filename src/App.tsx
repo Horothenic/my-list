@@ -65,7 +65,7 @@ import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, 
 const today = isoDate(new Date())
 const NOTE_MS = 5000
 
-type ActionNote = { id: number; label: string; detail: string; undo: () => void }
+type ActionNote = { id: number; pane: Pane; label: string; detail: string; undo: () => void }
 type PendingDelete = { mode: "daily" | "todo"; id: string; title: string }
 const toolbarDate = formatToolbarDate(new Date())
 const PANE_KEY = "my-list-pane"
@@ -663,9 +663,9 @@ export function App() {
     setOpenMenu((current) => (current === menu ? null : menu))
   }
 
-  function showNote(label: string, detail: string, undo: () => void) {
+  function showNote(pane: Pane, label: string, detail: string, undo: () => void) {
     noteSeq.current += 1
-    setActionNote({ id: noteSeq.current, label, detail, undo })
+    setActionNote({ id: noteSeq.current, pane, label, detail, undo })
   }
 
   function undoNote() {
@@ -684,7 +684,7 @@ export function App() {
         entry.id === id ? { ...entry, doneOn: entry.doneOn === today ? null : today } : entry,
       ),
     )
-    if (!silent) showNote(done ? "Done for today" : "Marked open", item.title, () => toggleDaily(id, true))
+    if (!silent) showNote("dailies", done ? "Done for today" : "Marked open", item.title, () => toggleDaily(id, true))
   }
 
   function toggleTodo(id: string, silent = false) {
@@ -694,7 +694,7 @@ export function App() {
     setTodos((items) =>
       items.map((entry) => (entry.id === id ? { ...entry, doneOn: entry.doneOn ? null : today } : entry)),
     )
-    if (!silent) showNote(done ? "Completed" : "Marked open", item.title, () => toggleTodo(id, true))
+    if (!silent) showNote("todos", done ? "Completed" : "Marked open", item.title, () => toggleTodo(id, true))
   }
 
   function openNewDaily() {
@@ -818,7 +818,7 @@ export function App() {
       rememberTags(draft.tags)
       if (!draft.id) setDailyFilter(scheduledOn(schedule, today) ? "due" : "all")
       setPane("dailies")
-      showNote("Saved", next.title, () => {
+      showNote("dailies", "Saved", next.title, () => {
         if (previous) setDailies((items) => items.map((item) => (item.id === id ? previous : item)))
         else setDailies((items) => items.filter((item) => item.id !== id))
       })
@@ -839,7 +839,7 @@ export function App() {
       rememberTags(draft.tags)
       setTodoFilter(next.doneOn ? "all" : next.start !== null && next.start > today ? "planned" : "due")
       setPane("todos")
-      showNote("Saved", next.title, () => {
+      showNote("todos", "Saved", next.title, () => {
         if (previous) setTodos((items) => items.map((item) => (item.id === id ? previous : item)))
         else setTodos((items) => items.filter((item) => item.id !== id))
       })
@@ -1122,15 +1122,6 @@ export function App() {
           <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={(event) => void onFileInput(event)} />
         </div>
       </header>
-      {actionNote && (
-        <div className="action-note" role="status">
-          <span className="action-note-copy">
-            <strong>{actionNote.label}</strong>
-            <span>{actionNote.detail}</span>
-          </span>
-          <button type="button" onClick={undoNote}>Undo</button>
-        </div>
-      )}
 
       <div className="segment" role="tablist">
         <button
@@ -1190,6 +1181,15 @@ export function App() {
               </li>
             ))}
           </ul>
+          {actionNote?.pane === "dailies" && (
+            <div className="action-note" role="status">
+              <span className="action-note-copy">
+                <strong>{actionNote.label}</strong>
+                <span>{actionNote.detail}</span>
+              </span>
+              <button type="button" onClick={undoNote}>Undo</button>
+            </div>
+          )}
           <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
             <PlusIcon />
           </button>
@@ -1254,6 +1254,15 @@ export function App() {
               )
             })}
           </ul>
+          {actionNote?.pane === "todos" && (
+            <div className="action-note" role="status">
+              <span className="action-note-copy">
+                <strong>{actionNote.label}</strong>
+                <span>{actionNote.detail}</span>
+              </span>
+              <button type="button" onClick={undoNote}>Undo</button>
+            </div>
+          )}
           <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
             <PlusIcon />
           </button>

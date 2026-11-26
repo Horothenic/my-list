@@ -247,11 +247,13 @@ button { font: inherit; color: inherit; }
 .message-bar .message-text { flex: 1; min-width: 0; }
 
 .action-note {
-  position: relative;
-  z-index: 7;
-  flex: none;
-  margin: 8px auto 0;
-  width: min(420px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  position: absolute;
+  z-index: 4;
+  right: 84px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: auto;
+  width: min(360px, calc(100% - 108px));
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
