@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { tagLabel, type SourceId } from "./model"
 import { ColorDialog } from "./Pickers"
+import { usePopupExit } from "./popupExit"
 import type { CustomColors, ThemeName } from "./theme"
 
 export function Settings({
@@ -60,6 +61,38 @@ export function Settings({
 }) {
   const [tagName, setTagName] = useState("")
   const [colorEdit, setColorEdit] = useState<{ key: keyof CustomColors; label: string } | null>(null)
+  const [pendingTag, setPendingTag] = useState<{ mode: "rename" | "delete"; tag: string } | null>(null)
+  const [renameName, setRenameName] = useState("")
+  const [tagError, setTagError] = useState("")
+  const tagPopup = usePopupExit(() => setPendingTag(null))
+
+  useEffect(() => {
+    if (!pendingTag) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.stopImmediatePropagation()
+      tagPopup.finish()
+    }
+    document.addEventListener("keydown", onKey, true)
+    return () => document.removeEventListener("keydown", onKey, true)
+  }, [pendingTag, tagPopup.finish])
+
+  function openRename(tag: string) {
+    setTagError("")
+    setRenameName(tagLabel(tag))
+    setPendingTag({ mode: "rename", tag })
+  }
+
+  function saveRename() {
+    if (!pendingTag) return
+    const next = tagLabel(renameName)
+    if (!next) {
+      setTagError("Add a name")
+      return
+    }
+    if (next !== tagLabel(pendingTag.tag)) onRenameTag(pendingTag.tag, next)
+    tagPopup.finish()
+  }
 
   return (
     <div className="settings">
@@ -131,17 +164,10 @@ export function Settings({
             <div className="settings-row" key={tag}>
               <span className="title-tag">{tagLabel(tag)}</span>
               <span>
-                <button
-                  type="button"
-                  className="menu-action"
-                  onClick={() => {
-                    const next = tagLabel(window.prompt("Rename tag", tagLabel(tag)) ?? "")
-                    if (next && next !== tagLabel(tag)) onRenameTag(tag, next)
-                  }}
-                >
+                <button type="button" className="menu-action" onClick={() => openRename(tag)}>
                   Rename
                 </button>
-                <button type="button" className="menu-action" onClick={() => onDeleteTag(tag)}>Delete</button>
+                <button type="button" className="menu-action" onClick={() => setPendingTag({ mode: "delete", tag })}>Delete</button>
               </span>
             </div>
           ))}
@@ -173,6 +199,71 @@ export function Settings({
           </button>
         </div>
       </div>
+      {pendingTag?.mode === "rename" && (
+        <div className={tagPopup.leaving ? "picker leaving" : "picker"} onMouseDown={tagPopup.finish}>
+          <form
+            className={tagPopup.leaving ? "picker-card leaving" : "picker-card"}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-tag-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              saveRename()
+            }}
+          >
+            <h2 id="rename-tag-title">Rename tag</h2>
+            <input
+              className="popup-field"
+              aria-label="Tag name"
+              autoFocus
+              value={renameName}
+              onChange={(event) => {
+                setRenameName(event.target.value.toLocaleUpperCase())
+                setTagError("")
+              }}
+            />
+            {tagError && <p className="editor-error">{tagError}</p>}
+            <div className="picker-actions">
+              <span />
+              <div className="picker-actions-right">
+                <button type="button" className="menu-btn" onClick={tagPopup.finish}>Cancel</button>
+                <button type="submit" className="save-btn">Save</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+      {pendingTag?.mode === "delete" && (
+        <div className={tagPopup.leaving ? "picker leaving" : "picker"} onMouseDown={tagPopup.finish}>
+          <div
+            className={tagPopup.leaving ? "picker-card leaving" : "picker-card"}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-tag-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-tag-title">Delete this tag?</h2>
+            <p className="delete-detail">{tagLabel(pendingTag.tag)} comes off every task.</p>
+            <div className="picker-actions">
+              <span />
+              <div className="picker-actions-right">
+                <button type="button" className="menu-btn" onClick={tagPopup.finish} autoFocus>Cancel</button>
+                <button
+                  type="button"
+                  className="text-danger"
+                  onClick={() => {
+                    onDeleteTag(pendingTag.tag)
+                    tagPopup.finish()
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {colorEdit && (
         <ColorDialog
           label={colorEdit.label}
