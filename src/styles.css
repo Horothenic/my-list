@@ -133,6 +133,7 @@ button { font: inherit; color: inherit; }
 
 .menu.filters-menu {
   position: fixed;
+  z-index: 12;
   top: calc(52px + var(--toolbar-safe) + 6px);
   right: max(12px, env(safe-area-inset-right));
   left: auto;
@@ -242,6 +243,73 @@ button { font: inherit; color: inherit; }
 
 .message-bar svg { width: 16px; height: 16px; flex: none; }
 .message-bar .message-text { flex: 1; min-width: 0; }
+
+.action-note {
+  position: absolute;
+  z-index: 4;
+  left: 20px;
+  right: auto;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 20px - 84px));
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  animation: note-rise 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.action-note-meter {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transform-origin: left center;
+  animation: note-meter linear forwards;
+}
+
+@keyframes note-rise {
+  from { transform: translateY(16px); }
+  to { transform: none; }
+}
+
+@keyframes note-meter {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.action-note-copy { display: flex; flex-direction: column; min-width: 0; }
+.action-note-copy strong { font-size: 13px; font-weight: 600; }
+.action-note-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.action-note button {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+}
+
+.action-note button:hover { background: var(--bar); }
 
 .message-bar button {
   height: 28px;
@@ -392,6 +460,13 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   gap: 12px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--row);
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rows > li.leaving {
+  pointer-events: none;
 }
 
 .check {
@@ -652,6 +727,7 @@ button.item {
   place-items: center;
   padding: 16px;
   background: rgba(14, 17, 20, 0.62);
+  animation: popup-fade 160ms ease-out;
 }
 .picker-card {
   width: min(360px, 100%);
@@ -661,8 +737,10 @@ button.item {
   background: var(--bar);
   border: 1px solid var(--line);
   border-radius: 10px;
+  animation: popup-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .picker-card h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+.delete-detail { margin: -4px 0 0; color: var(--muted); font-size: 13px; }
 .color-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .hue-wheel, .sv-square { position: relative; width: 148px; height: 148px; flex: none; touch-action: none; border-radius: 8px; }
 .hue-wheel {
@@ -713,7 +791,7 @@ button.item {
 .cal button.on { background: var(--accent); color: var(--accent-ink); }
 .picker-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
 .picker-actions-right { display: flex; gap: 8px; }
-.picker-actions .menu-btn, .picker-actions .save-btn { height: 36px; }
+.picker-actions .menu-btn, .picker-actions .save-btn, .picker-actions .text-danger { height: 36px; }
 .date-btn {
   display: flex;
   align-items: center;
@@ -788,7 +866,13 @@ button.item {
   .app[data-pane="todos"] .pane-dailies { display: none; }
   .rows { padding-bottom: env(safe-area-inset-bottom); }
   .rows > li { padding: 12px 16px; }
+  .action-note { left: 16px; width: min(420px, calc(100% - 16px - 84px)); }
   .pane-dailies .item { display: grid; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-note, .action-note-meter, .rows > li,
+  .scrim, .picker, .editor, .picker-card { animation: none; transition: none; }
 }
 
 .scrim {
@@ -799,6 +883,7 @@ button.item {
   place-items: center;
   padding: 16px;
   background: rgba(14, 17, 20, 0.62);
+  animation: popup-fade 160ms ease-out;
 }
 
 .editor {
@@ -810,6 +895,17 @@ button.item {
   border: 1px solid var(--line);
   border-radius: 10px;
   color-scheme: inherit;
+  animation: popup-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes popup-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popup-rise {
+  from { transform: translateY(8px); }
+  to { transform: none; }
 }
 
 .editor h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }

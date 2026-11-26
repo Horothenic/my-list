@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { flushSync } from "react-dom"
 import { parseListDocument, serializeList, type ListDocument } from "./document"
 import {
   clearDriveToken,
@@ -63,6 +64,12 @@ import { sampleDailies, sampleTodos } from "./sample"
 import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, type CustomColors, type ThemeName } from "./theme"
 
 const today = isoDate(new Date())
+const NOTE_MS = 5000
+const HOLD_MS = 125
+const CLOSE_MS = 280
+
+type ActionNote = { id: number; pane: Pane; label: string; detail: string; undo: () => void }
+type PendingDelete = { mode: "daily" | "todo"; id: string; title: string }
 const toolbarDate = formatToolbarDate(new Date())
 const PANE_KEY = "my-list-pane"
 const DAILY_FILTER_KEY = "my-list-daily-filter"
@@ -170,6 +177,9 @@ export function App() {
   const [, setDriveSignedIn] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
+  const [actionNote, setActionNote] = useState<ActionNote | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const noteSeq = useRef(0)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
   const [installed, setInstalled] = useState(
     () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true,
@@ -205,6 +215,11 @@ export function App() {
   const [dailiesWidth, setDailiesWidth] = useState(storedDailiesWidth)
   const [dragging, setDragging] = useState(false)
   const columnsRef = useRef<HTMLDivElement>(null)
+  const dailiesRowsRef = useRef<HTMLUListElement>(null)
+  const todosRowsRef = useRef<HTMLUListElement>(null)
+  const pendingExit = useRef<Record<string, number>>({})
+  const closing = useRef(new Set<string>())
+  const [leaving, setLeaving] = useState<Record<string, true>>({})
 
   useEffect(() => {
     if (!openMenu) return
@@ -223,6 +238,30 @@ export function App() {
       document.removeEventListener("keydown", onKey)
     }
   }, [openMenu])
+
+  useEffect(() => () => {
+    for (const timer of Object.values(pendingExit.current)) window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!actionNote) return
+    const id = actionNote.id
+    const timer = window.setTimeout(() => {
+      setActionNote((current) => (current?.id === id ? null : current))
+    }, NOTE_MS)
+    return () => window.clearTimeout(timer)
+  }, [actionNote])
+
+  useEffect(() => {
+    if (!pendingDelete) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.stopImmediatePropagation()
+      setPendingDelete(null)
+    }
+    document.addEventListener("keydown", onKey, true)
+    return () => document.removeEventListener("keydown", onKey, true)
+  }, [pendingDelete])
 
   function listDocument(): ListDocument {
     return {
@@ -636,20 +675,169 @@ export function App() {
     setOpenMenu((current) => (current === menu ? null : menu))
   }
 
-  function toggleDaily(id: string) {
-    setDailies((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, doneOn: item.doneOn === today ? null : today } : item,
-      ),
+  function showNote(pane: Pane, label: string, detail: string, undo: () => void) {
+    noteSeq.current += 1
+    setActionNote({ id: noteSeq.current, pane, label, detail, undo })
+  }
+
+  function undoNote() {
+    const current = actionNote
+    if (!current) return
+    setActionNote(null)
+    current.undo()
+  }
+
+  function motionOk() {
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  }
+
+  function settleRows(list: HTMLUListElement | null, apply: () => void) {
+    if (!list || !motionOk()) {
+      apply()
+      return
+    }
+    const before = new Map<string, number>()
+    for (const child of list.children) {
+      if (child instanceof HTMLElement && child.dataset.id) before.set(child.dataset.id, child.getBoundingClientRect().top)
+    }
+    apply()
+    window.requestAnimationFrame(() => {
+      for (const child of list.children) {
+        if (!(child instanceof HTMLElement) || !child.dataset.id) continue
+        const previous = before.get(child.dataset.id)
+        if (previous == null) continue
+        const shift = previous - child.getBoundingClientRect().top
+        if (Math.abs(shift) < 1) continue
+        child.style.transition = "none"
+        child.style.transform = `translateY(${shift}px)`
+        window.requestAnimationFrame(() => {
+          child.style.transition = "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)"
+          child.style.transform = ""
+        })
+      }
+    })
+  }
+
+  function rowElements(list: HTMLUListElement) {
+    return [...list.children].filter((child): child is HTMLLIElement => child instanceof HTMLLIElement)
+  }
+
+  function placeClosing(list: HTMLUListElement) {
+    let offset = 0
+    for (const child of rowElements(list)) {
+      const rowId = child.dataset.id
+      if (rowId && closing.current.has(rowId)) {
+        child.style.opacity = "0"
+        child.style.transform = ""
+        offset += child.getBoundingClientRect().height
+        continue
+      }
+      child.style.opacity = ""
+      child.style.transform = offset > 0 ? `translateY(-${offset}px)` : ""
+    }
+  }
+
+  function dropClosingStyles(list: HTMLUListElement | null) {
+    if (!list) return
+    for (const child of rowElements(list)) {
+      child.style.transition = "none"
+      child.style.transform = ""
+      child.style.opacity = ""
+    }
+    list.getBoundingClientRect()
+    for (const child of rowElements(list)) child.style.transition = ""
+  }
+
+  function listsWith(id: string) {
+    return [dailiesRowsRef.current, todosRowsRef.current].filter(
+      (list): list is HTMLUListElement => list?.querySelector(`[data-id="${CSS.escape(id)}"]`) != null,
     )
   }
 
-  function toggleTodo(id: string) {
-    setTodos((items) =>
-      items.map((item) =>
-        item.id === id ? { ...item, doneOn: item.doneOn ? null : today } : item,
-      ),
-    )
+  function cancelExit(id: string) {
+    const timer = pendingExit.current[id]
+    if (timer == null) return false
+    window.clearTimeout(timer)
+    delete pendingExit.current[id]
+    closing.current.delete(id)
+    setLeaving((current) => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+    for (const list of listsWith(id)) placeClosing(list)
+    return true
+  }
+
+  function finishExit(id: string, list: HTMLUListElement | null, apply: () => void) {
+    delete pendingExit.current[id]
+    closing.current.delete(id)
+    flushSync(() => {
+      setLeaving((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      apply()
+    })
+    if (closing.current.size === 0) dropClosingStyles(list)
+    else if (list) placeClosing(list)
+  }
+
+  function playExit(id: string, list: HTMLUListElement | null, apply: () => void) {
+    setLeaving((current) => ({ ...current, [id]: true }))
+    pendingExit.current[id] = window.setTimeout(() => {
+      if (pendingExit.current[id] == null) return
+      closing.current.add(id)
+      if (list) placeClosing(list)
+      pendingExit.current[id] = window.setTimeout(() => finishExit(id, list, apply), CLOSE_MS)
+    }, HOLD_MS)
+  }
+
+  function toggleDaily(id: string, silent = false) {
+    const item = dailies.find((entry) => entry.id === id)
+    if (!item) return
+    const completing = item.doneOn !== today
+    const apply = () => {
+      setDailies((items) =>
+        items.map((entry) =>
+          entry.id === id ? { ...entry, doneOn: entry.doneOn === today ? null : today } : entry,
+        ),
+      )
+    }
+    const leaves = completing && dailyFilter !== "all"
+    if (!silent && leaves && motionOk()) {
+      playExit(id, dailiesRowsRef.current, apply)
+      showNote("dailies", "Done for today", item.title, () => {
+        if (!cancelExit(id)) settleRows(dailiesRowsRef.current, () => toggleDaily(id, true))
+      })
+      return
+    }
+    if (!silent && !completing && dailyFilter !== "all" && motionOk()) settleRows(dailiesRowsRef.current, apply)
+    else apply()
+    if (!silent) showNote("dailies", completing ? "Done for today" : "Marked open", item.title, () => toggleDaily(id, true))
+  }
+
+  function toggleTodo(id: string, silent = false) {
+    const item = todos.find((entry) => entry.id === id)
+    if (!item) return
+    const completing = item.doneOn === null
+    const apply = () => {
+      setTodos((items) =>
+        items.map((entry) => (entry.id === id ? { ...entry, doneOn: entry.doneOn ? null : today } : entry)),
+      )
+    }
+    const leaves = completing && todoFilter !== "all"
+    if (!silent && leaves && motionOk()) {
+      playExit(id, todosRowsRef.current, apply)
+      showNote("todos", "Completed", item.title, () => {
+        if (!cancelExit(id)) settleRows(todosRowsRef.current, () => toggleTodo(id, true))
+      })
+      return
+    }
+    if (!silent && !completing && todoFilter !== "all" && motionOk()) settleRows(todosRowsRef.current, apply)
+    else apply()
+    if (!silent) showNote("todos", completing ? "Completed" : "Marked open", item.title, () => toggleTodo(id, true))
   }
 
   function openNewDaily() {
@@ -757,24 +945,31 @@ export function App() {
 
   function saveDraft(draft: Draft) {
     if (draft.mode === "daily") {
+      const previous = draft.id ? dailies.find((item) => item.id === draft.id) : undefined
       const schedule = scheduleFromDraft(draft)
+      const id = draft.id ?? crypto.randomUUID()
       const next: Daily = {
-        id: draft.id ?? crypto.randomUUID(),
+        id,
         title: draft.title,
         description: draft.description,
         schedule,
         steps: draft.steps,
-        doneOn: draft.id ? (dailies.find((item) => item.id === draft.id)?.doneOn ?? null) : null,
+        doneOn: previous?.doneOn ?? null,
         tags: draft.tags,
       }
       setDailies((items) => (draft.id ? items.map((item) => (item.id === draft.id ? next : item)) : [next, ...items]))
       rememberTags(draft.tags)
       if (!draft.id) setDailyFilter(scheduledOn(schedule, today) ? "due" : "all")
       setPane("dailies")
+      showNote("dailies", "Saved", next.title, () => {
+        if (previous) setDailies((items) => items.map((item) => (item.id === id ? previous : item)))
+        else setDailies((items) => items.filter((item) => item.id !== id))
+      })
     } else {
       const previous = draft.id ? todos.find((item) => item.id === draft.id) : undefined
+      const id = draft.id ?? crypto.randomUUID()
       const next: Todo = {
-        id: draft.id ?? crypto.randomUUID(),
+        id,
         title: draft.title,
         description: draft.description,
         start: draft.start,
@@ -787,6 +982,10 @@ export function App() {
       rememberTags(draft.tags)
       setTodoFilter(next.doneOn ? "all" : next.start !== null && next.start > today ? "planned" : "due")
       setPane("todos")
+      showNote("todos", "Saved", next.title, () => {
+        if (previous) setTodos((items) => items.map((item) => (item.id === id ? previous : item)))
+        else setTodos((items) => items.filter((item) => item.id !== id))
+      })
     }
     setEditor(null)
   }
@@ -915,8 +1114,14 @@ export function App() {
 
   function deleteDraft() {
     if (!editor?.id) return
-    if (editor.mode === "daily") setDailies((items) => items.filter((item) => item.id !== editor.id))
-    else setTodos((items) => items.filter((item) => item.id !== editor.id))
+    setPendingDelete({ mode: editor.mode, id: editor.id, title: editor.title })
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) return
+    if (pendingDelete.mode === "daily") setDailies((items) => items.filter((item) => item.id !== pendingDelete.id))
+    else setTodos((items) => items.filter((item) => item.id !== pendingDelete.id))
+    setPendingDelete(null)
     setEditor(null)
   }
 
@@ -1085,6 +1290,7 @@ export function App() {
           </div>
           {refreshBar("dailies")}
           <ul
+            ref={dailiesRowsRef}
             className="rows"
             onPointerDown={(event) => startPull("dailies", event)}
             onPointerMove={movePull}
@@ -1093,15 +1299,15 @@ export function App() {
             onClickCapture={ignorePullClick}
           >
             {shownDailies.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} data-id={item.id} className={leaving[item.id] ? "leaving" : undefined}>
                 <button
                   type="button"
-                  className={item.doneOn === today ? "check on" : "check"}
-                  aria-pressed={item.doneOn === today}
+                  className={item.doneOn === today || leaving[item.id] ? "check on" : "check"}
+                  aria-pressed={item.doneOn === today || leaving[item.id] === true}
                   aria-label={item.doneOn === today ? `Mark ${item.title} not done` : `Mark ${item.title} done`}
                   onClick={() => toggleDaily(item.id)}
                 >
-                  {item.doneOn === today && <CheckMark />}
+                  {(item.doneOn === today || leaving[item.id]) && <CheckMark />}
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openDaily(item)}>
@@ -1119,6 +1325,16 @@ export function App() {
               </li>
             ))}
           </ul>
+          {actionNote?.pane === "dailies" && (
+            <div key={actionNote.id} className="action-note" role="status">
+              <span className="action-note-copy">
+                <strong>{actionNote.label}</strong>
+                <span>{actionNote.detail}</span>
+              </span>
+              <button type="button" onClick={undoNote}>Undo</button>
+              <span className="action-note-meter" style={{ animationDuration: `${NOTE_MS}ms` }} aria-hidden="true" />
+            </div>
+          )}
           <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
             <PlusIcon />
           </button>
@@ -1140,6 +1356,7 @@ export function App() {
           </div>
           {refreshBar("todos")}
           <ul
+            ref={todosRowsRef}
             className="rows"
             onPointerDown={(event) => startPull("todos", event)}
             onPointerMove={movePull}
@@ -1150,16 +1367,16 @@ export function App() {
             {shownTodos.map((item) => {
               const marker = dueMarker(item.due, today, item.doneOn !== null, markerColors)
               return (
-              <li key={item.id}>
+              <li key={item.id} data-id={item.id} className={leaving[item.id] ? "leaving" : undefined}>
                 <span className="marker" style={{ background: marker.color }} title={marker.label} />
                 <button
                   type="button"
-                  className={item.doneOn ? "check on" : "check"}
-                  aria-pressed={item.doneOn !== null}
+                  className={item.doneOn || leaving[item.id] ? "check on" : "check"}
+                  aria-pressed={item.doneOn !== null || leaving[item.id] === true}
                   aria-label={item.doneOn ? `Mark ${item.title} not done` : `Mark ${item.title} done`}
                   onClick={() => toggleTodo(item.id)}
                 >
-                  {item.doneOn && <CheckMark />}
+                  {(item.doneOn || leaving[item.id]) && <CheckMark />}
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openTodo(item)}>
@@ -1183,6 +1400,16 @@ export function App() {
               )
             })}
           </ul>
+          {actionNote?.pane === "todos" && (
+            <div key={actionNote.id} className="action-note" role="status">
+              <span className="action-note-copy">
+                <strong>{actionNote.label}</strong>
+                <span>{actionNote.detail}</span>
+              </span>
+              <button type="button" onClick={undoNote}>Undo</button>
+              <span className="action-note-meter" style={{ animationDuration: `${NOTE_MS}ms` }} aria-hidden="true" />
+            </div>
+          )}
           <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
             <PlusIcon />
           </button>
@@ -1256,8 +1483,36 @@ export function App() {
           catalog={tags}
           onSave={saveDraft}
           onDelete={deleteDraft}
-          onClose={() => setEditor(null)}
+          onClose={() => {
+            setPendingDelete(null)
+            setEditor(null)
+          }}
         />
+      )}
+      {pendingDelete && (
+        <div className="picker" onMouseDown={() => setPendingDelete(null)}>
+          <div
+            className="picker-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-title">Delete this task?</h2>
+            <p className="delete-detail">{pendingDelete.title}</p>
+            <div className="picker-actions">
+              <span />
+              <div className="picker-actions-right">
+                <button type="button" className="menu-btn" onClick={() => setPendingDelete(null)} autoFocus>
+                  Cancel
+                </button>
+                <button type="button" className="text-danger" onClick={confirmDelete}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
