@@ -62,6 +62,9 @@ function colorOr(value: unknown, fallback: string): string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback
 }
 
+const DARK_INK = "#1f2328"
+const LIGHT_INK = "#f6f8fa"
+
 export function surfacePaint(background: string): {
   bar: string
   raised: string
@@ -71,21 +74,31 @@ export function surfacePaint(background: string): {
   textSoft: string
   muted: string
   faint: string
+  warn: string
+  danger: string
   warnBg: string
   scheme: "light" | "dark"
 } {
-  const light = luminance(background) > 0.4
-  const toward = light ? "#1f2328" : "#ffffff"
+  const light = readableInk([background]) === DARK_INK
+  const toward = light ? DARK_INK : "#ffffff"
   const lift = (amount: number) => mix(background, toward, amount)
+  const bar = lift(light ? 0.04 : 0.03)
+  const raised = lift(light ? 0.07 : 0.075)
+  const row = lift(light ? 0.04 : 0.055)
+  const line = lift(light ? 0.2 : 0.12)
+  const surfaces = [background, bar, raised, row]
+  const text = readableInk(surfaces)
   return {
-    bar: lift(light ? 0.04 : 0.03),
-    raised: lift(light ? 0.07 : 0.075),
-    row: lift(light ? 0.04 : 0.055),
-    line: lift(light ? 0.2 : 0.12),
-    text: light ? "#1f2328" : "#e6edf3",
-    textSoft: light ? "#424a53" : "#c9d1d9",
-    muted: light ? "#656d76" : "#9da7b3",
-    faint: "#6e7781",
+    bar,
+    raised,
+    row,
+    line,
+    text,
+    textSoft: soften(text, background, surfaces, 4.5),
+    muted: soften(text, background, surfaces, 3.5),
+    faint: soften(text, background, surfaces, 3),
+    warn: ensureContrast(light ? "#9a6700" : "#e3b341", surfaces, text),
+    danger: ensureContrast(light ? "#d1242f" : "#f47067", surfaces, text),
     warnBg: mix(light ? "#fff8c5" : "#3d2e00", background, light ? 0.35 : 0.45),
     scheme: light ? "light" : "dark",
   }
@@ -95,8 +108,42 @@ export function accentPaint(accent: string, background: string): { accent: strin
   return {
     accent,
     bg: mix(accent, background, 0.82),
-    ink: luminance(accent) > 0.45 ? "#1E2227" : "#ffffff",
+    ink: readableInk([accent]),
   }
+}
+
+function readableInk(surfaces: string[]): string {
+  return worstContrast(DARK_INK, surfaces) >= worstContrast(LIGHT_INK, surfaces) ? DARK_INK : LIGHT_INK
+}
+
+function worstContrast(ink: string, surfaces: string[]): number {
+  return surfaces.reduce((lowest, surface) => Math.min(lowest, contrast(ink, surface)), Number.POSITIVE_INFINITY)
+}
+
+function contrast(first: string, second: string): number {
+  const lighter = Math.max(luminance(first), luminance(second))
+  const darker = Math.min(luminance(first), luminance(second))
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function soften(ink: string, background: string, surfaces: string[], minimum: number): string {
+  let chosen = ink
+  for (let step = 1; step <= 12; step += 1) {
+    const next = mix(ink, background, step * 0.06)
+    if (worstContrast(next, surfaces) < minimum) break
+    chosen = next
+  }
+  return chosen
+}
+
+function ensureContrast(color: string, surfaces: string[], ink: string): string {
+  if (worstContrast(color, surfaces) >= 3) return color
+  let chosen = color
+  for (let step = 1; step <= 16; step += 1) {
+    chosen = mix(color, ink, step * 0.06)
+    if (worstContrast(chosen, surfaces) >= 3) break
+  }
+  return chosen
 }
 
 function mix(from: string, to: string, amount: number): string {

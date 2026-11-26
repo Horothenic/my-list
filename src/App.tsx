@@ -512,7 +512,7 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     const root = document.documentElement
-    const surfaceNames = ["--bar", "--raised", "--row", "--line", "--text", "--text-soft", "--muted", "--faint", "--warn-bg"]
+    const surfaceNames = ["--bar", "--raised", "--row", "--line", "--text", "--text-soft", "--muted", "--faint", "--warn", "--danger", "--warn-bg"]
     if (theme === "custom") {
       const paint = accentPaint(colors.accent, colors.background)
       const surface = surfacePaint(colors.background)
@@ -525,6 +525,8 @@ export function App() {
       root.style.setProperty("--text-soft", surface.textSoft)
       root.style.setProperty("--muted", surface.muted)
       root.style.setProperty("--faint", surface.faint)
+      root.style.setProperty("--warn", surface.warn)
+      root.style.setProperty("--danger", surface.danger)
       root.style.setProperty("--warn-bg", surface.warnBg)
       root.style.setProperty("--accent", paint.accent)
       root.style.setProperty("--accent-bg", paint.bg)
