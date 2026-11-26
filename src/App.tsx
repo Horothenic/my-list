@@ -212,6 +212,10 @@ export function App() {
   const [dailiesWidth, setDailiesWidth] = useState(storedDailiesWidth)
   const [dragging, setDragging] = useState(false)
   const columnsRef = useRef<HTMLDivElement>(null)
+  const dailiesRowsRef = useRef<HTMLUListElement>(null)
+  const todosRowsRef = useRef<HTMLUListElement>(null)
+  const pendingExit = useRef<Record<string, number>>({})
+  const [leaving, setLeaving] = useState<Record<string, true>>({})
 
   useEffect(() => {
     if (!openMenu) return
@@ -230,6 +234,10 @@ export function App() {
       document.removeEventListener("keydown", onKey)
     }
   }, [openMenu])
+
+  useEffect(() => () => {
+    for (const timer of Object.values(pendingExit.current)) window.clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     if (!actionNote) return
@@ -675,26 +683,107 @@ export function App() {
     current.undo()
   }
 
+  function motionOk() {
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  }
+
+  function settleRows(list: HTMLUListElement | null, apply: () => void) {
+    if (!list || !motionOk()) {
+      apply()
+      return
+    }
+    const before = new Map<string, number>()
+    for (const child of list.children) {
+      if (child instanceof HTMLElement && child.dataset.id) before.set(child.dataset.id, child.getBoundingClientRect().top)
+    }
+    apply()
+    window.requestAnimationFrame(() => {
+      for (const child of list.children) {
+        if (!(child instanceof HTMLElement) || !child.dataset.id) continue
+        const previous = before.get(child.dataset.id)
+        if (previous == null) continue
+        const shift = previous - child.getBoundingClientRect().top
+        if (Math.abs(shift) < 1) continue
+        child.style.transition = "none"
+        child.style.transform = `translateY(${shift}px)`
+        window.requestAnimationFrame(() => {
+          child.style.transition = "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)"
+          child.style.transform = ""
+        })
+      }
+    })
+  }
+
+  function cancelExit(id: string) {
+    const timer = pendingExit.current[id]
+    if (timer == null) return false
+    window.clearTimeout(timer)
+    delete pendingExit.current[id]
+    setLeaving((current) => {
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+    return true
+  }
+
+  function playExit(id: string, list: HTMLUListElement | null, apply: () => void) {
+    setLeaving((current) => ({ ...current, [id]: true }))
+    pendingExit.current[id] = window.setTimeout(() => {
+      delete pendingExit.current[id]
+      setLeaving((current) => {
+        const next = { ...current }
+        delete next[id]
+        return next
+      })
+      settleRows(list, apply)
+    }, 280)
+  }
+
   function toggleDaily(id: string, silent = false) {
     const item = dailies.find((entry) => entry.id === id)
     if (!item) return
-    const done = item.doneOn !== today
-    setDailies((items) =>
-      items.map((entry) =>
-        entry.id === id ? { ...entry, doneOn: entry.doneOn === today ? null : today } : entry,
-      ),
-    )
-    if (!silent) showNote("dailies", done ? "Done for today" : "Marked open", item.title, () => toggleDaily(id, true))
+    const completing = item.doneOn !== today
+    const apply = () => {
+      setDailies((items) =>
+        items.map((entry) =>
+          entry.id === id ? { ...entry, doneOn: entry.doneOn === today ? null : today } : entry,
+        ),
+      )
+    }
+    const leaves = completing && dailyFilter !== "all"
+    if (!silent && leaves && motionOk()) {
+      playExit(id, dailiesRowsRef.current, apply)
+      showNote("dailies", "Done for today", item.title, () => {
+        if (!cancelExit(id)) settleRows(dailiesRowsRef.current, () => toggleDaily(id, true))
+      })
+      return
+    }
+    if (!silent && !completing && dailyFilter !== "all" && motionOk()) settleRows(dailiesRowsRef.current, apply)
+    else apply()
+    if (!silent) showNote("dailies", completing ? "Done for today" : "Marked open", item.title, () => toggleDaily(id, true))
   }
 
   function toggleTodo(id: string, silent = false) {
     const item = todos.find((entry) => entry.id === id)
     if (!item) return
-    const done = item.doneOn === null
-    setTodos((items) =>
-      items.map((entry) => (entry.id === id ? { ...entry, doneOn: entry.doneOn ? null : today } : entry)),
-    )
-    if (!silent) showNote("todos", done ? "Completed" : "Marked open", item.title, () => toggleTodo(id, true))
+    const completing = item.doneOn === null
+    const apply = () => {
+      setTodos((items) =>
+        items.map((entry) => (entry.id === id ? { ...entry, doneOn: entry.doneOn ? null : today } : entry)),
+      )
+    }
+    const leaves = completing && todoFilter !== "all"
+    if (!silent && leaves && motionOk()) {
+      playExit(id, todosRowsRef.current, apply)
+      showNote("todos", "Completed", item.title, () => {
+        if (!cancelExit(id)) settleRows(todosRowsRef.current, () => toggleTodo(id, true))
+      })
+      return
+    }
+    if (!silent && !completing && todoFilter !== "all" && motionOk()) settleRows(todosRowsRef.current, apply)
+    else apply()
+    if (!silent) showNote("todos", completing ? "Completed" : "Marked open", item.title, () => toggleTodo(id, true))
   }
 
   function openNewDaily() {
@@ -1147,6 +1236,7 @@ export function App() {
           </div>
           {refreshBar("dailies")}
           <ul
+            ref={dailiesRowsRef}
             className="rows"
             onPointerDown={(event) => startPull("dailies", event)}
             onPointerMove={movePull}
@@ -1155,15 +1245,15 @@ export function App() {
             onClickCapture={ignorePullClick}
           >
             {shownDailies.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} data-id={item.id} className={leaving[item.id] ? "leaving" : undefined}>
                 <button
                   type="button"
-                  className={item.doneOn === today ? "check on" : "check"}
-                  aria-pressed={item.doneOn === today}
+                  className={item.doneOn === today || leaving[item.id] ? "check on" : "check"}
+                  aria-pressed={item.doneOn === today || leaving[item.id] === true}
                   aria-label={item.doneOn === today ? `Mark ${item.title} not done` : `Mark ${item.title} done`}
                   onClick={() => toggleDaily(item.id)}
                 >
-                  {item.doneOn === today && <CheckMark />}
+                  {(item.doneOn === today || leaving[item.id]) && <CheckMark />}
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openDaily(item)}>
@@ -1182,12 +1272,13 @@ export function App() {
             ))}
           </ul>
           {actionNote?.pane === "dailies" && (
-            <div className="action-note" role="status">
+            <div key={actionNote.id} className="action-note" role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
               </span>
               <button type="button" onClick={undoNote}>Undo</button>
+              <span className="action-note-meter" style={{ animationDuration: `${NOTE_MS}ms` }} aria-hidden="true" />
             </div>
           )}
           <button type="button" className="fab" aria-label="Add a daily" onClick={openNewDaily}>
@@ -1211,6 +1302,7 @@ export function App() {
           </div>
           {refreshBar("todos")}
           <ul
+            ref={todosRowsRef}
             className="rows"
             onPointerDown={(event) => startPull("todos", event)}
             onPointerMove={movePull}
@@ -1221,16 +1313,16 @@ export function App() {
             {shownTodos.map((item) => {
               const marker = dueMarker(item.due, today, item.doneOn !== null, markerColors)
               return (
-              <li key={item.id}>
+              <li key={item.id} data-id={item.id} className={leaving[item.id] ? "leaving" : undefined}>
                 <span className="marker" style={{ background: marker.color }} title={marker.label} />
                 <button
                   type="button"
-                  className={item.doneOn ? "check on" : "check"}
-                  aria-pressed={item.doneOn !== null}
+                  className={item.doneOn || leaving[item.id] ? "check on" : "check"}
+                  aria-pressed={item.doneOn !== null || leaving[item.id] === true}
                   aria-label={item.doneOn ? `Mark ${item.title} not done` : `Mark ${item.title} done`}
                   onClick={() => toggleTodo(item.id)}
                 >
-                  {item.doneOn && <CheckMark />}
+                  {(item.doneOn || leaving[item.id]) && <CheckMark />}
                 </button>
                 <div className="item-body">
                   <button type="button" className="item" onClick={() => openTodo(item)}>
@@ -1255,12 +1347,13 @@ export function App() {
             })}
           </ul>
           {actionNote?.pane === "todos" && (
-            <div className="action-note" role="status">
+            <div key={actionNote.id} className="action-note" role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
               </span>
               <button type="button" onClick={undoNote}>Undo</button>
+              <span className="action-note-meter" style={{ animationDuration: `${NOTE_MS}ms` }} aria-hidden="true" />
             </div>
           )}
           <button type="button" className="fab" aria-label="Add a todo" onClick={openNewTodo}>
