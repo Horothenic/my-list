@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { flushSync } from "react-dom"
 import { parseListDocument, serializeList, type ListDocument } from "./document"
 import {
   clearDriveToken,
@@ -64,6 +65,8 @@ import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, 
 
 const today = isoDate(new Date())
 const NOTE_MS = 5000
+const HOLD_MS = 125
+const CLOSE_MS = 280
 
 type ActionNote = { id: number; pane: Pane; label: string; detail: string; undo: () => void }
 type PendingDelete = { mode: "daily" | "todo"; id: string; title: string }
@@ -215,6 +218,7 @@ export function App() {
   const dailiesRowsRef = useRef<HTMLUListElement>(null)
   const todosRowsRef = useRef<HTMLUListElement>(null)
   const pendingExit = useRef<Record<string, number>>({})
+  const closing = useRef(new Set<string>())
   const [leaving, setLeaving] = useState<Record<string, true>>({})
 
   useEffect(() => {
@@ -714,30 +718,80 @@ export function App() {
     })
   }
 
+  function rowElements(list: HTMLUListElement) {
+    return [...list.children].filter((child): child is HTMLLIElement => child instanceof HTMLLIElement)
+  }
+
+  function placeClosing(list: HTMLUListElement) {
+    let offset = 0
+    for (const child of rowElements(list)) {
+      const rowId = child.dataset.id
+      if (rowId && closing.current.has(rowId)) {
+        child.style.opacity = "0"
+        child.style.transform = ""
+        offset += child.getBoundingClientRect().height
+        continue
+      }
+      child.style.opacity = ""
+      child.style.transform = offset > 0 ? `translateY(-${offset}px)` : ""
+    }
+  }
+
+  function dropClosingStyles(list: HTMLUListElement | null) {
+    if (!list) return
+    for (const child of rowElements(list)) {
+      child.style.transition = "none"
+      child.style.transform = ""
+      child.style.opacity = ""
+    }
+    list.getBoundingClientRect()
+    for (const child of rowElements(list)) child.style.transition = ""
+  }
+
+  function listsWith(id: string) {
+    return [dailiesRowsRef.current, todosRowsRef.current].filter(
+      (list): list is HTMLUListElement => list?.querySelector(`[data-id="${CSS.escape(id)}"]`) != null,
+    )
+  }
+
   function cancelExit(id: string) {
     const timer = pendingExit.current[id]
     if (timer == null) return false
     window.clearTimeout(timer)
     delete pendingExit.current[id]
+    closing.current.delete(id)
     setLeaving((current) => {
       const next = { ...current }
       delete next[id]
       return next
     })
+    for (const list of listsWith(id)) placeClosing(list)
     return true
   }
 
-  function playExit(id: string, list: HTMLUListElement | null, apply: () => void) {
-    setLeaving((current) => ({ ...current, [id]: true }))
-    pendingExit.current[id] = window.setTimeout(() => {
-      delete pendingExit.current[id]
+  function finishExit(id: string, list: HTMLUListElement | null, apply: () => void) {
+    delete pendingExit.current[id]
+    closing.current.delete(id)
+    flushSync(() => {
       setLeaving((current) => {
         const next = { ...current }
         delete next[id]
         return next
       })
-      settleRows(list, apply)
-    }, 280)
+      apply()
+    })
+    if (closing.current.size === 0) dropClosingStyles(list)
+    else if (list) placeClosing(list)
+  }
+
+  function playExit(id: string, list: HTMLUListElement | null, apply: () => void) {
+    setLeaving((current) => ({ ...current, [id]: true }))
+    pendingExit.current[id] = window.setTimeout(() => {
+      if (pendingExit.current[id] == null) return
+      closing.current.add(id)
+      if (list) placeClosing(list)
+      pendingExit.current[id] = window.setTimeout(() => finishExit(id, list, apply), CLOSE_MS)
+    }, HOLD_MS)
   }
 
   function toggleDaily(id: string, silent = false) {
