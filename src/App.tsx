@@ -15,6 +15,7 @@ import {
   type DriveSync,
 } from "./drive"
 import { Editor, type Draft } from "./Editor"
+import { usePopupExit } from "./popupExit"
 import { Logo } from "./Logo"
 import { Settings } from "./Settings"
 import {
@@ -65,6 +66,7 @@ import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, 
 
 const today = isoDate(new Date())
 const NOTE_MS = 5000
+const NOTE_EXIT_MS = 180
 const HOLD_MS = 125
 const CLOSE_MS = 280
 
@@ -178,6 +180,10 @@ export function App() {
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
   const [actionNote, setActionNote] = useState<ActionNote | null>(null)
+  const [noteLeaving, setNoteLeaving] = useState(false)
+  const noteExit = useRef(0)
+  const noteLeavingRef = useRef(false)
+  const dismissNoteRef = useRef<(id: number) => void>(() => {})
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const noteSeq = useRef(0)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
@@ -220,6 +226,11 @@ export function App() {
   const pendingExit = useRef<Record<string, number>>({})
   const closing = useRef(new Set<string>())
   const [leaving, setLeaving] = useState<Record<string, true>>({})
+  const editorPopup = usePopupExit(() => {
+    setPendingDelete(null)
+    setEditor(null)
+  })
+  const deletePopup = usePopupExit(() => setPendingDelete(null))
 
   useEffect(() => {
     if (!openMenu) return
@@ -240,15 +251,14 @@ export function App() {
   }, [openMenu])
 
   useEffect(() => () => {
+    window.clearTimeout(noteExit.current)
     for (const timer of Object.values(pendingExit.current)) window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
     if (!actionNote) return
     const id = actionNote.id
-    const timer = window.setTimeout(() => {
-      setActionNote((current) => (current?.id === id ? null : current))
-    }, NOTE_MS)
+    const timer = window.setTimeout(() => dismissNoteRef.current(id), NOTE_MS)
     return () => window.clearTimeout(timer)
   }, [actionNote])
 
@@ -257,7 +267,7 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
       event.stopImmediatePropagation()
-      setPendingDelete(null)
+      deletePopup.finish()
     }
     document.addEventListener("keydown", onKey, true)
     return () => document.removeEventListener("keydown", onKey, true)
@@ -675,7 +685,26 @@ export function App() {
     setOpenMenu((current) => (current === menu ? null : menu))
   }
 
+  function dismissNote(id: number) {
+    if (noteLeavingRef.current) return
+    if (!motionOk()) {
+      setActionNote((current) => (current?.id === id ? null : current))
+      return
+    }
+    noteLeavingRef.current = true
+    setNoteLeaving(true)
+    noteExit.current = window.setTimeout(() => {
+      noteLeavingRef.current = false
+      setNoteLeaving(false)
+      setActionNote((current) => (current?.id === id ? null : current))
+    }, NOTE_EXIT_MS)
+  }
+  dismissNoteRef.current = dismissNote
+
   function showNote(pane: Pane, label: string, detail: string, undo: () => void) {
+    window.clearTimeout(noteExit.current)
+    noteLeavingRef.current = false
+    setNoteLeaving(false)
     noteSeq.current += 1
     setActionNote({ id: noteSeq.current, pane, label, detail, undo })
   }
@@ -683,7 +712,7 @@ export function App() {
   function undoNote() {
     const current = actionNote
     if (!current) return
-    setActionNote(null)
+    dismissNote(current.id)
     current.undo()
   }
 
@@ -987,7 +1016,7 @@ export function App() {
         else setTodos((items) => items.filter((item) => item.id !== id))
       })
     }
-    setEditor(null)
+    editorPopup.finish()
   }
 
   function toggleDailyStep(itemId: string, stepId: string) {
@@ -1121,8 +1150,8 @@ export function App() {
     if (!pendingDelete) return
     if (pendingDelete.mode === "daily") setDailies((items) => items.filter((item) => item.id !== pendingDelete.id))
     else setTodos((items) => items.filter((item) => item.id !== pendingDelete.id))
-    setPendingDelete(null)
-    setEditor(null)
+    deletePopup.finish()
+    editorPopup.finish()
   }
 
   function startPull(which: Pane, event: ReactPointerEvent<HTMLUListElement>) {
@@ -1326,7 +1355,7 @@ export function App() {
             ))}
           </ul>
           {actionNote?.pane === "dailies" && (
-            <div key={actionNote.id} className="action-note" role="status">
+            <div key={actionNote.id} className={noteLeaving ? "action-note leaving" : "action-note"} role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
@@ -1401,7 +1430,7 @@ export function App() {
             })}
           </ul>
           {actionNote?.pane === "todos" && (
-            <div key={actionNote.id} className="action-note" role="status">
+            <div key={actionNote.id} className={noteLeaving ? "action-note leaving" : "action-note"} role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
@@ -1481,18 +1510,16 @@ export function App() {
           key={`${editor.mode}-${editor.id ?? "new"}`}
           initial={editor}
           catalog={tags}
+          leaving={editorPopup.leaving}
           onSave={saveDraft}
           onDelete={deleteDraft}
-          onClose={() => {
-            setPendingDelete(null)
-            setEditor(null)
-          }}
+          onClose={editorPopup.finish}
         />
       )}
       {pendingDelete && (
-        <div className="picker" onMouseDown={() => setPendingDelete(null)}>
+        <div className={deletePopup.leaving ? "picker leaving" : "picker"} onMouseDown={deletePopup.finish}>
           <div
-            className="picker-card"
+            className={deletePopup.leaving ? "picker-card leaving" : "picker-card"}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-title"
@@ -1503,7 +1530,7 @@ export function App() {
             <div className="picker-actions">
               <span />
               <div className="picker-actions-right">
-                <button type="button" className="menu-btn" onClick={() => setPendingDelete(null)} autoFocus>
+                <button type="button" className="menu-btn" onClick={deletePopup.finish} autoFocus>
                   Cancel
                 </button>
                 <button type="button" className="text-danger" onClick={confirmDelete}>

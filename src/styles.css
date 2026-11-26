@@ -263,6 +263,10 @@ button { font: inherit; color: inherit; }
   animation: note-rise 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.action-note.leaving {
+  animation: note-drop 180ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
 .action-note-meter {
   position: absolute;
   right: 8px;
@@ -278,6 +282,11 @@ button { font: inherit; color: inherit; }
 @keyframes note-rise {
   from { transform: translateY(16px); }
   to { transform: none; }
+}
+
+@keyframes note-drop {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(12px); opacity: 0; }
 }
 
 @keyframes note-meter {
@@ -730,6 +739,7 @@ button.item {
   animation: popup-fade 160ms ease-out;
 }
 .picker-card {
+  margin: 0;
   width: min(360px, 100%);
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow: auto;
@@ -789,6 +799,20 @@ button.item {
 .cal button { cursor: pointer; }
 .cal button.today { box-shadow: inset 0 0 0 1px var(--line); }
 .cal button.on { background: var(--accent); color: var(--accent-ink); }
+.popup-field {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.picker-card .editor-error { margin: 8px 0 0; }
 .picker-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
 .picker-actions-right { display: flex; gap: 8px; }
 .picker-actions .menu-btn, .picker-actions .save-btn, .picker-actions .text-danger { height: 36px; }
@@ -871,8 +895,9 @@ button.item {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .action-note, .action-note-meter, .rows > li,
-  .scrim, .picker, .editor, .picker-card { animation: none; transition: none; }
+  .action-note, .action-note.leaving, .action-note-meter, .rows > li,
+  .scrim, .scrim.leaving, .picker, .picker.leaving,
+  .editor, .editor.leaving, .picker-card, .picker-card.leaving { animation: none; transition: none; }
 }
 
 .scrim {
@@ -906,6 +931,27 @@ button.item {
 @keyframes popup-rise {
   from { transform: translateY(8px); }
   to { transform: none; }
+}
+
+.scrim.leaving,
+.picker.leaving {
+  animation: popup-fade-out 160ms ease-in forwards;
+  pointer-events: none;
+}
+
+.editor.leaving,
+.picker-card.leaving {
+  animation: popup-drop 160ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes popup-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes popup-drop {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(8px); opacity: 0; }
 }
 
 .editor h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
