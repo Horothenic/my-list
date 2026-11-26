@@ -65,6 +65,7 @@ import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, 
 
 const today = isoDate(new Date())
 const NOTE_MS = 5000
+const NOTE_EXIT_MS = 180
 const HOLD_MS = 125
 const CLOSE_MS = 280
 
@@ -178,6 +179,10 @@ export function App() {
   const [connecting, setConnecting] = useState(false)
   const [driveBanner, setDriveBanner] = useState<{ kind: "conflict" | "signin" | "error"; message: string } | null>(null)
   const [actionNote, setActionNote] = useState<ActionNote | null>(null)
+  const [noteLeaving, setNoteLeaving] = useState(false)
+  const noteExit = useRef(0)
+  const noteLeavingRef = useRef(false)
+  const dismissNoteRef = useRef<(id: number) => void>(() => {})
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const noteSeq = useRef(0)
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
@@ -240,15 +245,14 @@ export function App() {
   }, [openMenu])
 
   useEffect(() => () => {
+    window.clearTimeout(noteExit.current)
     for (const timer of Object.values(pendingExit.current)) window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
     if (!actionNote) return
     const id = actionNote.id
-    const timer = window.setTimeout(() => {
-      setActionNote((current) => (current?.id === id ? null : current))
-    }, NOTE_MS)
+    const timer = window.setTimeout(() => dismissNoteRef.current(id), NOTE_MS)
     return () => window.clearTimeout(timer)
   }, [actionNote])
 
@@ -675,7 +679,26 @@ export function App() {
     setOpenMenu((current) => (current === menu ? null : menu))
   }
 
+  function dismissNote(id: number) {
+    if (noteLeavingRef.current) return
+    if (!motionOk()) {
+      setActionNote((current) => (current?.id === id ? null : current))
+      return
+    }
+    noteLeavingRef.current = true
+    setNoteLeaving(true)
+    noteExit.current = window.setTimeout(() => {
+      noteLeavingRef.current = false
+      setNoteLeaving(false)
+      setActionNote((current) => (current?.id === id ? null : current))
+    }, NOTE_EXIT_MS)
+  }
+  dismissNoteRef.current = dismissNote
+
   function showNote(pane: Pane, label: string, detail: string, undo: () => void) {
+    window.clearTimeout(noteExit.current)
+    noteLeavingRef.current = false
+    setNoteLeaving(false)
     noteSeq.current += 1
     setActionNote({ id: noteSeq.current, pane, label, detail, undo })
   }
@@ -683,7 +706,7 @@ export function App() {
   function undoNote() {
     const current = actionNote
     if (!current) return
-    setActionNote(null)
+    dismissNote(current.id)
     current.undo()
   }
 
@@ -1326,7 +1349,7 @@ export function App() {
             ))}
           </ul>
           {actionNote?.pane === "dailies" && (
-            <div key={actionNote.id} className="action-note" role="status">
+            <div key={actionNote.id} className={noteLeaving ? "action-note leaving" : "action-note"} role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
@@ -1401,7 +1424,7 @@ export function App() {
             })}
           </ul>
           {actionNote?.pane === "todos" && (
-            <div key={actionNote.id} className="action-note" role="status">
+            <div key={actionNote.id} className={noteLeaving ? "action-note leaving" : "action-note"} role="status">
               <span className="action-note-copy">
                 <strong>{actionNote.label}</strong>
                 <span>{actionNote.detail}</span>
