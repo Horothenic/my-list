@@ -62,6 +62,35 @@ function colorOr(value: unknown, fallback: string): string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback
 }
 
+export function surfacePaint(background: string): {
+  bar: string
+  raised: string
+  row: string
+  line: string
+  text: string
+  textSoft: string
+  muted: string
+  faint: string
+  warnBg: string
+  scheme: "light" | "dark"
+} {
+  const light = luminance(background) > 0.4
+  const toward = light ? "#1f2328" : "#ffffff"
+  const lift = (amount: number) => mix(background, toward, amount)
+  return {
+    bar: lift(light ? 0.04 : 0.03),
+    raised: lift(light ? 0.07 : 0.075),
+    row: lift(light ? 0.04 : 0.055),
+    line: lift(light ? 0.2 : 0.12),
+    text: light ? "#1f2328" : "#e6edf3",
+    textSoft: light ? "#424a53" : "#c9d1d9",
+    muted: light ? "#656d76" : "#9da7b3",
+    faint: "#6e7781",
+    warnBg: mix(light ? "#fff8c5" : "#3d2e00", background, light ? 0.35 : 0.45),
+    scheme: light ? "light" : "dark",
+  }
+}
+
 export function accentPaint(accent: string, background: string): { accent: string; bg: string; ink: string } {
   return {
     accent,
