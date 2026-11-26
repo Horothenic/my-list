@@ -3,6 +3,7 @@
 html, body, #root { height: 100%; margin: 0; }
 
 html {
+  --toolbar-safe: env(safe-area-inset-top);
   --bg: #1E2227;
   --bar: #24292F;
   --raised: #2D333B;
@@ -48,12 +49,16 @@ html[data-theme="custom"] {
   --bg: var(--custom-bg, #1E2227);
 }
 
+@media (display-mode: standalone) and (max-width: 760px) {
+  html { --toolbar-safe: max(env(safe-area-inset-top), 47px); }
+}
+
 body {
   position: fixed;
   inset: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  background: var(--bg);
+  background: var(--bar);
   color: var(--text);
   font: 14px/1.4 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -62,22 +67,35 @@ body {
 button { font: inherit; color: inherit; }
 
 .app {
-  position: relative;
-  height: 100%;
-  height: 100dvh;
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg);
+}
+
+.app::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 20;
+  height: var(--toolbar-safe);
+  background: var(--bar);
+  pointer-events: none;
 }
 
 .toolbar {
-  height: calc(52px + env(safe-area-inset-top));
+  position: relative;
+  z-index: 5;
+  height: calc(52px + var(--toolbar-safe));
   flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  padding: var(--toolbar-safe) max(12px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
   background: var(--bar);
   border-bottom: 1px solid var(--line);
 }
@@ -117,7 +135,7 @@ button { font: inherit; color: inherit; }
 
 .menu.filters-menu {
   position: fixed;
-  top: calc(52px + env(safe-area-inset-top) + 6px);
+  top: calc(52px + var(--toolbar-safe) + 6px);
   right: max(12px, env(safe-area-inset-right));
   left: auto;
   width: min(440px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
@@ -353,12 +371,12 @@ h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
 .rows {
   list-style: none;
   margin: 0;
-  padding: 0 0 88px;
+  padding: 0 0 calc(72px + env(safe-area-inset-bottom));
   flex: 1;
   min-height: 0;
   overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  background: var(--bg);
 }
 
 .refresh {
