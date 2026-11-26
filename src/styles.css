@@ -135,6 +135,7 @@ button { font: inherit; color: inherit; }
 
 .menu.filters-menu {
   position: fixed;
+  z-index: 12;
   top: calc(52px + var(--toolbar-safe) + 6px);
   right: max(12px, env(safe-area-inset-right));
   left: auto;
@@ -244,6 +245,48 @@ button { font: inherit; color: inherit; }
 
 .message-bar svg { width: 16px; height: 16px; flex: none; }
 .message-bar .message-text { flex: 1; min-width: 0; }
+
+.action-note {
+  position: relative;
+  z-index: 7;
+  flex: none;
+  margin: 8px auto 0;
+  width: min(420px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.action-note-copy { display: flex; flex-direction: column; min-width: 0; }
+.action-note-copy strong { font-size: 13px; font-weight: 600; }
+.action-note-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.action-note button {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: none;
+}
+
+.action-note button:hover { background: var(--bar); }
 
 .message-bar button {
   height: 28px;
@@ -665,6 +708,7 @@ button.item {
   border-radius: 10px;
 }
 .picker-card h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+.delete-detail { margin: -4px 0 0; color: var(--muted); font-size: 13px; }
 .color-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .hue-wheel, .sv-square { position: relative; width: 148px; height: 148px; flex: none; touch-action: none; border-radius: 8px; }
 .hue-wheel {
@@ -715,7 +759,7 @@ button.item {
 .cal button.on { background: var(--accent); color: var(--accent-ink); }
 .picker-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
 .picker-actions-right { display: flex; gap: 8px; }
-.picker-actions .menu-btn, .picker-actions .save-btn { height: 36px; }
+.picker-actions .menu-btn, .picker-actions .save-btn, .picker-actions .text-danger { height: 36px; }
 .date-btn {
   display: flex;
   align-items: center;
