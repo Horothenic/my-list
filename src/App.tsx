@@ -62,7 +62,7 @@ import {
   type TodoFilter,
 } from "./model"
 import { sampleDailies, sampleTodos } from "./sample"
-import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, type CustomColors, type ThemeName } from "./theme"
+import { accentPaint, rememberColors, rememberTheme, storedColors, storedTheme, surfacePaint, type CustomColors, type ThemeName } from "./theme"
 
 const today = isoDate(new Date())
 const NOTE_MS = 5000
@@ -512,19 +512,34 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     const root = document.documentElement
+    const surfaceNames = ["--bar", "--raised", "--row", "--line", "--text", "--text-soft", "--muted", "--faint", "--warn-bg"]
     if (theme === "custom") {
       const paint = accentPaint(colors.accent, colors.background)
+      const surface = surfacePaint(colors.background)
       root.style.setProperty("--custom-bg", colors.background)
+      root.style.setProperty("--bar", surface.bar)
+      root.style.setProperty("--raised", surface.raised)
+      root.style.setProperty("--row", surface.row)
+      root.style.setProperty("--line", surface.line)
+      root.style.setProperty("--text", surface.text)
+      root.style.setProperty("--text-soft", surface.textSoft)
+      root.style.setProperty("--muted", surface.muted)
+      root.style.setProperty("--faint", surface.faint)
+      root.style.setProperty("--warn-bg", surface.warnBg)
       root.style.setProperty("--accent", paint.accent)
       root.style.setProperty("--accent-bg", paint.bg)
       root.style.setProperty("--accent-ink", paint.ink)
+      root.style.colorScheme = surface.scheme
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", surface.bar)
     } else {
       root.style.removeProperty("--custom-bg")
+      for (const name of surfaceNames) root.style.removeProperty(name)
       root.style.removeProperty("--accent")
       root.style.removeProperty("--accent-bg")
       root.style.removeProperty("--accent-ink")
+      root.style.colorScheme = ""
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f6f8fa" : "#24292F")
     }
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f6f8fa" : "#24292F")
     rememberTheme(theme)
   }, [theme, colors.background, colors.accent])
 
