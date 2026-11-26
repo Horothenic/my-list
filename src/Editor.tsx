@@ -36,12 +36,14 @@ export type Draft =
 export function Editor({
   initial,
   catalog,
+  leaving = false,
   onSave,
   onDelete,
   onClose,
 }: {
   initial: Draft
   catalog: string[]
+  leaving?: boolean
   onSave: (draft: Draft) => void
   onDelete: () => void
   onClose: () => void
@@ -67,6 +69,7 @@ export function Editor({
   }, [onClose])
 
   function save() {
+    if (leaving) return
     const title = draft.title.trim()
     if (!title) {
       setError("Add a title")
@@ -94,9 +97,9 @@ export function Editor({
 
   return (
     <>
-    <div className="scrim" onMouseDown={onClose}>
+    <div className={leaving ? "scrim leaving" : "scrim"} onMouseDown={onClose}>
       <form
-        className="editor"
+        className={leaving ? "editor leaving" : "editor"}
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault()
@@ -348,7 +351,6 @@ export function Editor({
         onSave={(iso) => {
           if (dateField === "due" && iso) setDraft({ ...draft, due: iso })
           if (dateField === "start") setDraft({ ...draft, start: iso })
-          setDateField(null)
         }}
       />
     )}

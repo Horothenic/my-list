@@ -881,7 +881,8 @@ button.item {
 
 @media (prefers-reduced-motion: reduce) {
   .action-note, .action-note.leaving, .action-note-meter, .rows > li,
-  .scrim, .picker, .editor, .picker-card { animation: none; transition: none; }
+  .scrim, .scrim.leaving, .picker, .picker.leaving,
+  .editor, .editor.leaving, .picker-card, .picker-card.leaving { animation: none; transition: none; }
 }
 
 .scrim {
@@ -915,6 +916,27 @@ button.item {
 @keyframes popup-rise {
   from { transform: translateY(8px); }
   to { transform: none; }
+}
+
+.scrim.leaving,
+.picker.leaving {
+  animation: popup-fade-out 160ms ease-in forwards;
+  pointer-events: none;
+}
+
+.editor.leaving,
+.picker-card.leaving {
+  animation: popup-drop 160ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes popup-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes popup-drop {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(8px); opacity: 0; }
 }
 
 .editor h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }

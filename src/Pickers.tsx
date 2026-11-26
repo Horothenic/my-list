@@ -1,5 +1,6 @@
 import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { isoDate, parseIso } from "./model"
+import { usePopupExit } from "./popupExit"
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"]
 
@@ -16,17 +17,18 @@ export function ColorDialog({
 }) {
   const [hsv, setHsv] = useState(() => hexToHsv(value))
   const color = hsvToHex(hsv.h, hsv.s, hsv.v)
+  const popup = usePopupExit(onClose)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopImmediatePropagation()
-        onClose()
+        popup.finish()
       }
     }
     document.addEventListener("keydown", onKey, true)
     return () => document.removeEventListener("keydown", onKey, true)
-  }, [onClose])
+  }, [popup.finish])
 
   function setHue(event: ReactPointerEvent<HTMLDivElement>) {
     const box = event.currentTarget.getBoundingClientRect()
@@ -45,9 +47,9 @@ export function ColorDialog({
   }
 
   return (
-    <div className="picker" onMouseDown={onClose}>
+    <div className={popup.leaving ? "picker leaving" : "picker"} onMouseDown={popup.finish}>
       <div
-        className="picker-card"
+        className={popup.leaving ? "picker-card leaving" : "picker-card"}
         role="dialog"
         aria-modal="true"
         aria-label={label}
@@ -91,8 +93,8 @@ export function ColorDialog({
         <div className="picker-actions">
           <span />
           <div className="picker-actions-right">
-            <button type="button" className="menu-btn" onClick={onClose}>Cancel</button>
-            <button type="button" className="save-btn" onClick={() => onSave(color)}>Save</button>
+            <button type="button" className="menu-btn" onClick={popup.finish}>Cancel</button>
+            <button type="button" className="save-btn" onClick={() => { onSave(color); popup.finish() }}>Save</button>
           </div>
         </div>
       </div>
@@ -117,17 +119,18 @@ export function DateDialog({
   const [cursor, setCursor] = useState({ year: initial.getFullYear(), month: initial.getMonth() })
   const [selected, setSelected] = useState(value ?? isoDate(initial))
   const today = isoDate(new Date())
+  const popup = usePopupExit(onClose)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopImmediatePropagation()
-        onClose()
+        popup.finish()
       }
     }
     document.addEventListener("keydown", onKey, true)
     return () => document.removeEventListener("keydown", onKey, true)
-  }, [onClose])
+  }, [popup.finish])
 
   const cells = monthCells(cursor.year, cursor.month)
   const title = new Date(cursor.year, cursor.month, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })
@@ -138,9 +141,9 @@ export function DateDialog({
   }
 
   return (
-    <div className="picker" onMouseDown={onClose}>
+    <div className={popup.leaving ? "picker leaving" : "picker"} onMouseDown={popup.finish}>
       <div
-        className="picker-card"
+        className={popup.leaving ? "picker-card leaving" : "picker-card"}
         role="dialog"
         aria-modal="true"
         aria-label={label}
@@ -173,13 +176,13 @@ export function DateDialog({
         </div>
         <div className="picker-actions">
           {optional ? (
-            <button type="button" className="menu-btn" onClick={() => onSave(null)}>Clear</button>
+            <button type="button" className="menu-btn" onClick={() => { onSave(null); popup.finish() }}>Clear</button>
           ) : (
             <span />
           )}
           <div className="picker-actions-right">
-            <button type="button" className="menu-btn" onClick={onClose}>Cancel</button>
-            <button type="button" className="save-btn" onClick={() => onSave(selected)}>Save</button>
+            <button type="button" className="menu-btn" onClick={popup.finish}>Cancel</button>
+            <button type="button" className="save-btn" onClick={() => { onSave(selected); popup.finish() }}>Save</button>
           </div>
         </div>
       </div>

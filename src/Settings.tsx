@@ -178,10 +178,7 @@ export function Settings({
           label={colorEdit.label}
           value={colors[colorEdit.key]}
           onClose={() => setColorEdit(null)}
-          onSave={(hex) => {
-            onColors({ ...colors, [colorEdit.key]: hex })
-            setColorEdit(null)
-          }}
+          onSave={(hex) => onColors({ ...colors, [colorEdit.key]: hex })}
         />
       )}
     </div>

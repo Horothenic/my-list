@@ -15,6 +15,7 @@ import {
   type DriveSync,
 } from "./drive"
 import { Editor, type Draft } from "./Editor"
+import { usePopupExit } from "./popupExit"
 import { Logo } from "./Logo"
 import { Settings } from "./Settings"
 import {
@@ -225,6 +226,11 @@ export function App() {
   const pendingExit = useRef<Record<string, number>>({})
   const closing = useRef(new Set<string>())
   const [leaving, setLeaving] = useState<Record<string, true>>({})
+  const editorPopup = usePopupExit(() => {
+    setPendingDelete(null)
+    setEditor(null)
+  })
+  const deletePopup = usePopupExit(() => setPendingDelete(null))
 
   useEffect(() => {
     if (!openMenu) return
@@ -261,7 +267,7 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
       event.stopImmediatePropagation()
-      setPendingDelete(null)
+      deletePopup.finish()
     }
     document.addEventListener("keydown", onKey, true)
     return () => document.removeEventListener("keydown", onKey, true)
@@ -1010,7 +1016,7 @@ export function App() {
         else setTodos((items) => items.filter((item) => item.id !== id))
       })
     }
-    setEditor(null)
+    editorPopup.finish()
   }
 
   function toggleDailyStep(itemId: string, stepId: string) {
@@ -1144,8 +1150,8 @@ export function App() {
     if (!pendingDelete) return
     if (pendingDelete.mode === "daily") setDailies((items) => items.filter((item) => item.id !== pendingDelete.id))
     else setTodos((items) => items.filter((item) => item.id !== pendingDelete.id))
-    setPendingDelete(null)
-    setEditor(null)
+    deletePopup.finish()
+    editorPopup.finish()
   }
 
   function startPull(which: Pane, event: ReactPointerEvent<HTMLUListElement>) {
@@ -1504,18 +1510,16 @@ export function App() {
           key={`${editor.mode}-${editor.id ?? "new"}`}
           initial={editor}
           catalog={tags}
+          leaving={editorPopup.leaving}
           onSave={saveDraft}
           onDelete={deleteDraft}
-          onClose={() => {
-            setPendingDelete(null)
-            setEditor(null)
-          }}
+          onClose={editorPopup.finish}
         />
       )}
       {pendingDelete && (
-        <div className="picker" onMouseDown={() => setPendingDelete(null)}>
+        <div className={deletePopup.leaving ? "picker leaving" : "picker"} onMouseDown={deletePopup.finish}>
           <div
-            className="picker-card"
+            className={deletePopup.leaving ? "picker-card leaving" : "picker-card"}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-title"
@@ -1526,7 +1530,7 @@ export function App() {
             <div className="picker-actions">
               <span />
               <div className="picker-actions-right">
-                <button type="button" className="menu-btn" onClick={() => setPendingDelete(null)} autoFocus>
+                <button type="button" className="menu-btn" onClick={deletePopup.finish} autoFocus>
                   Cancel
                 </button>
                 <button type="button" className="text-danger" onClick={confirmDelete}>
